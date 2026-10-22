@@ -279,13 +279,15 @@ export function Caixa() {
         </div>
         <div className="caixa__topo-acoes">
           {naoLidos > 0 && (
-            <button type="button" className="caixa__chip caixa__chip--alerta" onClick={() => setModal({ tipo: 'comunicados' })}>
-              <Icone nome="megafone" tamanho={18} /> {naoLidos} comunicado{naoLidos > 1 ? 's' : ''}
+            <button type="button" className="caixa__chip caixa__chip--alerta" onClick={() => setModal({ tipo: 'comunicados' })} aria-label={`${naoLidos} comunicado${naoLidos > 1 ? 's' : ''}`}>
+              <Icone nome="megafone" tamanho={18} /> {naoLidos}
+              <span className="caixa__chip-rotulo"> comunicado{naoLidos > 1 ? 's' : ''}</span>
             </button>
           )}
           {emEspera.length > 0 && (
-            <button type="button" className="caixa__chip" onClick={() => setModal({ tipo: 'espera' })}>
-              <Icone nome="espera" tamanho={18} /> {emEspera.length} em espera
+            <button type="button" className="caixa__chip caixa__chip--espera" onClick={() => setModal({ tipo: 'espera' })} aria-label={`${emEspera.length} em espera`}>
+              <Icone nome="espera" tamanho={18} /> {emEspera.length}
+              <span className="caixa__chip-rotulo"> em espera</span>
             </button>
           )}
           <button type="button" className="caixa__chip" onClick={() => setModal({ tipo: 'pedidos' })}>

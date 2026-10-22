@@ -215,6 +215,10 @@
 .faixa svg {
   flex: none;
 }
+.faixa > span {
+  flex: 1;
+  min-width: 0;
+}
 
 .admin__conteudo {
   padding: 24px 28px 64px;
@@ -376,6 +380,8 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .seletor-filiais {
@@ -821,5 +827,70 @@
   }
   .tabela {
     min-width: 640px;
+  }
+}
+
+/* Celular: o topo precisa caber em 360px sem empurrar a página para o lado. */
+@media (max-width: 599.98px) {
+  .admin__topo {
+    gap: 8px;
+    padding: 0 10px;
+  }
+  .admin__filial {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .admin__filial select {
+    flex: 1;
+    min-width: 0;
+    text-overflow: ellipsis;
+  }
+  .admin__topo-direita {
+    flex: none;
+    margin-left: 0;
+    gap: 6px;
+  }
+  .admin__usuario {
+    padding: 4px;
+  }
+  .admin__usuario > svg {
+    display: none;
+  }
+  .admin__conteudo {
+    padding-top: 18px;
+  }
+  .pagina__cabecalho h1 {
+    font-size: 24px;
+  }
+  .pagina__acoes {
+    width: 100%;
+  }
+  .cartao {
+    padding: 16px;
+  }
+  .grade-cartoes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .barra-filtros > .entrada-com-icone {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .barra-filtros .selecao-caixa {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+  .barra-filtros__total {
+    margin-left: 0;
+  }
+  .lista-grupos__item {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+  .lista-grupos__info {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+  .lista-grupos__item .acoes-linha {
+    margin-left: auto;
   }
 }

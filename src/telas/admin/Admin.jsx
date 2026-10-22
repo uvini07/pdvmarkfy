@@ -230,12 +230,18 @@ export function Admin() {
           <div className="admin__avisos">
             {demosAtivos && pode('admin.usuarios') && (
               <p className="faixa faixa--alerta">
-                <Icone nome="alerta" tamanho={18} /> Os usuários de demonstração (Ana, Bruno e Cozinha Morumbi) têm PIN conhecido. <a href="#/admin/usuarios">Troque os PINs ou desative-os</a> antes de usar na loja.
+                <Icone nome="alerta" tamanho={18} />
+                <span>
+                  Os usuários de demonstração (Ana, Bruno e Cozinha Morumbi) têm PIN conhecido. <a href="#/admin/usuarios">Troque os PINs ou desative-os</a> antes de usar na loja.
+                </span>
               </p>
             )}
             {pode('admin.backup') && (diasSemBackup === null || diasSemBackup >= 1) && (
               <p className="faixa">
-                <Icone nome="nuvem" tamanho={18} /> {diasSemBackup === null ? 'Nenhum backup feito ainda.' : `Último backup há ${diasSemBackup} dia(s).`} Os dados ficam só neste navegador até o banco de dados entrar. <a href="#/admin/seguranca">Fazer backup agora</a>
+                <Icone nome="nuvem" tamanho={18} />
+                <span>
+                  {diasSemBackup === null ? 'Nenhum backup feito ainda.' : `Último backup há ${diasSemBackup} dia(s).`} Os dados ficam só neste navegador até o banco de dados entrar. <a href="#/admin/seguranca">Fazer backup agora</a>
+                </span>
               </p>
             )}
           </div>

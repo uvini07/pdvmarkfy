@@ -1110,7 +1110,8 @@
     padding: 0 8px 0 14px;
     gap: 10px;
   }
-  .caixa__topo .caixa__chip:not(.caixa__chip--alerta) {
+  /* "Pedidos" fica só no menu; os avisos que pedem ação continuam à vista. */
+  .caixa__topo .caixa__chip:not(.caixa__chip--alerta):not(.caixa__chip--espera) {
     display: none;
   }
   .caixa__grupos {
@@ -1140,7 +1141,7 @@
     position: fixed;
     z-index: 20;
     inset: 0;
-    padding: 18px 12px 12px;
+    padding: 18px 12px max(12px, env(safe-area-inset-bottom));
     background: var(--fundo);
     transform: translateY(100%);
     transition: transform 260ms var(--ease-saida);
@@ -1158,7 +1159,7 @@
     z-index: 15;
     left: 12px;
     right: 12px;
-    bottom: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1198,5 +1199,21 @@
   }
   .modal {
     max-width: 100vw;
+  }
+}
+
+@media (max-width: 479.98px) {
+  .caixa__topo {
+    gap: 8px;
+    padding: 0 4px 0 12px;
+  }
+  .caixa__topo-acoes {
+    gap: 4px;
+  }
+  .caixa__chip {
+    padding: 0 10px;
+  }
+  .caixa__chip-rotulo {
+    display: none;
   }
 }

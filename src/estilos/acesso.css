@@ -309,7 +309,7 @@
 
 @media (max-width: 860px) {
   .acesso {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .acesso__marca {
     min-height: 200px;
