@@ -62,9 +62,9 @@ function anguloLegivel(rot = 0) {
   return r > 90 && r <= 270 ? 180 : 0
 }
 
-function TextoElemento({ el }) {
+function TextoElemento({ el, giro = 0 }) {
   if (!el.rotulo) return null
-  const virar = anguloLegivel(el.rot)
+  const virar = anguloLegivel((el.rot || 0) + giro)
   const transform = virar ? `rotate(180 ${el.w / 2} ${el.h / 2})` : undefined
   if (el.tipo === 'area')
     return (
@@ -81,7 +81,7 @@ function TextoElemento({ el }) {
 }
 
 // Balcão, parede, porta, planta, área e texto
-export function Decoracao({ el, editor }) {
+export function Decoracao({ el, editor, giro = 0 }) {
   return (
     <g className={`salao-el salao-el--${el.tipo}`} transform={`translate(${el.x} ${el.y}) rotate(${el.rot || 0} ${el.w / 2} ${el.h / 2})`}>
       {el.tipo === 'texto' ? (
@@ -90,7 +90,7 @@ export function Decoracao({ el, editor }) {
         <Tampo el={el} className="salao-el__forma" />
       )}
       {el.tipo === 'planta' && <circle className="salao-el__miolo" cx={el.w / 2} cy={el.h / 2} r={el.w / 5} />}
-      <TextoElemento el={el} />
+      <TextoElemento el={el} giro={giro} />
     </g>
   )
 }
@@ -136,7 +136,8 @@ function Selo({ x, y, r, icone, classe, numero }) {
 
 // Uma mesa: tampo com as cadeiras (giram juntos) e o número sempre em pé.
 // No caixa, recebe a situação (cor, tempo, valor, avisos).
-export function MesaDesenho({ el, situacao, escala = 1, editor, escolhida, apagada, sobreposta, aoTocar, rotulo }) {
+// giro: quanto o mapa inteiro está girado; o número da mesa gira de volta e fica sempre em pé
+export function MesaDesenho({ el, situacao, escala = 1, editor, escolhida, apagada, sobreposta, aoTocar, rotulo, giro = 0 }) {
   const estado = situacao?.estado || (el.ativa === false ? 'inativa' : 'livre')
   const ocupadas = situacao?.conta?.pessoas || 0
   const cadeiras = cadeirasDaMesa(el)
@@ -195,7 +196,7 @@ export function MesaDesenho({ el, situacao, escala = 1, editor, escolhida, apaga
         const yLinha = y + (l.tamanho * 1.12) / 2
         y += l.tamanho * 1.12
         return (
-          <text key={i} className={l.classe} x={el.w / 2} y={yLinha} textAnchor="middle" dominantBaseline="central" fontSize={l.tamanho}>
+          <text key={i} className={l.classe} x={el.w / 2} y={yLinha} textAnchor="middle" dominantBaseline="central" fontSize={l.tamanho} transform={giro ? `rotate(${-giro} ${el.w / 2} ${el.h / 2})` : undefined}>
             {l.texto}
           </text>
         )
@@ -209,28 +210,62 @@ export function MesaDesenho({ el, situacao, escala = 1, editor, escolhida, apaga
 
 // Mede quantos pixels da tela vale uma unidade do desenho, para o texto das
 // mesas ficar legível em qualquer tamanho de tela
-function useEscala(ref, larguraDesenho) {
+function useEscala(ref, larguraDesenho, alturaDesenho) {
   const [escala, setEscala] = useState(1)
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
-    const medir = () => setEscala(Math.max(0.15, el.getBoundingClientRect().width / larguraDesenho) || 1)
+    // O desenho cabe pela largura ou pela altura (mapa girado fica alto)
+    const medir = () => {
+      const r = el.getBoundingClientRect()
+      setEscala(Math.max(0.15, Math.min(r.width / larguraDesenho, alturaDesenho ? r.height / alturaDesenho : Infinity)) || 1)
+    }
     medir()
     const ro = new ResizeObserver(medir)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [ref, larguraDesenho])
+  }, [ref, larguraDesenho, alturaDesenho])
   return escala
 }
 
 // Mapa de um ambiente para o caixa e o acompanhamento: enquadra o que foi
 // desenhado (sem as sobras vazias do ambiente) e deixa as mesas tocáveis.
+// Giro do mapa por ambiente, lembrado neste aparelho: cada um vê o salão do
+// jeito que está de pé na loja (da porta, do caixa…)
+const chaveGiro = (id) => `scpdv:giro-mapa:${id}`
+function lerGiro(id) {
+  try {
+    return Number(localStorage.getItem(chaveGiro(id))) || 0
+  } catch {
+    return 0
+  }
+}
+
+// Mapa de um ambiente para o caixa e o acompanhamento: enquadra o que foi
+// desenhado (sem as sobras vazias do ambiente) e deixa as mesas tocáveis.
+// O botão de girar vira o salão inteiro de 90 em 90 graus.
 export function MapaSalao({ ambiente, situacoes, aoTocar, escolhida, podeTocar, rotulo }) {
   const ref = useRef(null)
+  const [giros, setGiros] = useState({})
+  const giro = giros[ambiente.id] ?? lerGiro(ambiente.id)
+  const girar = () => {
+    const novo = (giro + 90) % 360
+    setGiros((g) => ({ ...g, [ambiente.id]: novo }))
+    try {
+      localStorage.setItem(chaveGiro(ambiente.id), String(novo))
+    } catch {
+      // sem armazenamento: só não lembra
+    }
+  }
   const caixa = caixaDosElementos(ambiente.elementos)
   const margem = 34
-  const vb = caixa ? { x: caixa.x - margem, y: caixa.y - margem, w: caixa.w + margem * 2, h: caixa.h + margem * 2 } : { x: 0, y: 0, w: ambiente.largura, h: ambiente.altura }
-  const escala = useEscala(ref, vb.w)
+  const base = caixa ? { x: caixa.x - margem, y: caixa.y - margem, w: caixa.w + margem * 2, h: caixa.h + margem * 2 } : { x: 0, y: 0, w: ambiente.largura, h: ambiente.altura }
+  // Girado de lado, largura e altura trocam; o centro continua o mesmo
+  const deLado = giro % 180 !== 0
+  const cx = base.x + base.w / 2
+  const cy = base.y + base.h / 2
+  const vb = deLado ? { x: cx - base.h / 2, y: cy - base.w / 2, w: base.h, h: base.w } : base
+  const escala = useEscala(ref, vb.w, vb.h)
   const decoracoes = ambiente.elementos.filter((e) => e.tipo !== 'mesa')
   const mesas = ambiente.elementos.filter((e) => e.tipo === 'mesa')
 
@@ -243,9 +278,13 @@ export function MapaSalao({ ambiente, situacoes, aoTocar, escolhida, podeTocar, 
 
   return (
     <div className="mapa-salao">
+      <button type="button" className="mapa-salao__girar" onClick={girar} aria-label={`Girar o mapa (agora ${giro}°)`} title="Girar o mapa">
+        <Icone nome="atualizar" tamanho={18} />
+      </button>
       <svg ref={ref} className="mapa-salao__svg" viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} style={{ aspectRatio: `${vb.w} / ${vb.h}` }} role="group" aria-label={rotulo || `Mapa de ${ambiente.nome}`}>
+        <g transform={giro ? `rotate(${giro} ${cx} ${cy})` : undefined}>
         {decoracoes.map((el) => (
-          <Decoracao key={el.id} el={el} />
+          <Decoracao key={el.id} el={el} giro={giro} />
         ))}
         {mesas.map((m) => {
           const mesa = { ...m, ambienteId: ambiente.id, ambienteNome: ambiente.nome, nome: nomeMesa(m) }
@@ -261,9 +300,11 @@ export function MapaSalao({ ambiente, situacoes, aoTocar, escolhida, podeTocar, 
               apagada={!permitida}
               aoTocar={aoTocar ? () => permitida && aoTocar(mesa) : undefined}
               rotulo={descreverSituacao(mesa, s)}
+              giro={giro}
             />
           )
         })}
+        </g>
       </svg>
     </div>
   )

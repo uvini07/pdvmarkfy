@@ -757,6 +757,7 @@
 /* ---------- Mapa (caixa e acompanhamento) ---------- */
 
 .mapa-salao {
+  position: relative;
   padding: 8px;
   border-radius: var(--raio-g);
   background: var(--salao-chao);
@@ -1643,4 +1644,30 @@
 }
 .abertura__mesas p {
   font-size: 13.5px;
+}
+
+.mapa-salao__girar {
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--raio-m);
+  background: var(--superficie-2);
+  box-shadow: inset 0 0 0 1px var(--borda);
+  color: var(--texto-2);
+}
+.mapa-salao__girar:hover {
+  color: var(--texto);
+  background: var(--superficie-3);
+}
+@media (max-width: 599.98px) {
+  .mapa-salao__girar {
+    position: sticky;
+    left: 0;
+    float: right;
+  }
 }
