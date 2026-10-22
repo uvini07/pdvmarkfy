@@ -360,8 +360,8 @@ Proposta, no mesmo padrão do site (`src/lojas/carregador.js` isola de onde vêm
 
 - Dados de exemplo em arquivos JS (`src/dados/…`), montados a partir de `REFERENCIA-CADASTROS.md` e
   do `produtos.js` do site.
-- O que o usuário cria ou muda (pedidos, caixa, cadastros editados) fica no **localStorage** do
-  navegador.
+- O que o usuário cria ou muda (pedidos, caixa, cadastros editados) fica no **IndexedDB** do
+  navegador (o localStorage, de ~5 MB, enchia em poucas semanas de vendas).
 - Toda leitura e gravação passa por uma camada só (`src/dados/repositorio.js`, por exemplo). Quando o
   banco chegar, troca-se só essa camada; telas e regras ficam iguais.
 - Limitação: sem banco, cada computador vê só os próprios dados (não há dashboard da rede real).
@@ -397,6 +397,11 @@ Stack sugerida, igual aos outros dois projetos: **React + Vite**, CSS com tokens
 ## 7. Fases sugeridas
 
 O narrador achou "muito trabalhoso". É verdade para a parte fiscal; o resto é cadastro e tela.
+
+**Situação:** as fases 1 a 5 estão feitas, sem banco de dados (ver `README.md`). A frente de caixa
+seguiu os PDVs de balcão mais usados (Toast, Square, Saipos), já que o vídeo do caixa não chegou.
+A importação do XML da NF-e também está pronta; a busca automática na Sefaz e a NFC-e (fase 6)
+dependem de servidor e certificado digital (ver `SEGURANCA.md`).
 
 | Fase | Entrega | Precisa de banco? |
 | --- | --- | --- |

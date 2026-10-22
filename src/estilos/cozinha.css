@@ -1,0 +1,341 @@
+/* Cozinha (KDS) e painel de senhas. */
+
+.kds {
+  display: grid;
+  grid-template-rows: 60px minmax(0, 1fr);
+  height: 100dvh;
+  overflow: hidden;
+}
+.kds__topo {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 12px 0 20px;
+  border-bottom: 1px solid var(--borda);
+}
+.kds__topo h1 {
+  font-size: 20px;
+}
+.kds__topo h1 .mudo {
+  font-weight: 700;
+  font-size: 15px;
+  margin-left: 6px;
+}
+.kds__resumo {
+  margin-left: auto;
+  display: flex;
+  gap: 18px;
+  color: var(--texto-3);
+  font-weight: 700;
+}
+.kds__resumo strong {
+  color: var(--texto);
+  font-size: 18px;
+}
+.kds__colunas {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 14px;
+  min-height: 0;
+}
+.kds__coluna {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: var(--raio-g);
+  background: var(--n-900);
+}
+.kds__coluna h2 {
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  font-size: 18px;
+}
+.kds__coluna h2 span {
+  min-width: 30px;
+  padding: 2px 10px;
+  border-radius: var(--raio-pill);
+  background: var(--superficie-2);
+  text-align: center;
+}
+.kds__coluna--pronto h2 span {
+  background: var(--amarelo);
+  color: var(--marrom);
+}
+.kds__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 10px 14px;
+  flex: 1;
+}
+.kds__vazio {
+  padding: 24px 10px;
+  color: var(--texto-3);
+  text-align: center;
+}
+
+.kds-pedido {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--raio-m);
+  background: var(--superficie);
+  box-shadow: inset 4px 0 0 var(--n-600);
+  animation: modal-entra 260ms var(--ease-saida);
+}
+.kds-pedido--atencao {
+  box-shadow: inset 4px 0 0 var(--laranja-vivo);
+}
+.kds-pedido--atrasado {
+  box-shadow: inset 4px 0 0 var(--vermelho-vivo);
+}
+.kds-pedido--atrasado .kds-pedido__tempo {
+  background: var(--vermelho);
+  color: var(--branco);
+}
+.kds-pedido--atencao .kds-pedido__tempo {
+  background: rgba(255, 176, 32, 0.18);
+  color: var(--laranja-vivo);
+}
+.kds-pedido header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 8px 16px;
+}
+.kds-pedido__numero {
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--amarelo);
+}
+.kds-pedido__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.2;
+}
+.kds-pedido__info small {
+  color: var(--texto-3);
+}
+.kds-pedido__tempo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--raio-pill);
+  background: var(--superficie-2);
+  font-weight: 900;
+}
+.kds-pedido__itens {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 16px 10px;
+}
+.kds-pedido__itens li {
+  display: flex;
+  gap: 10px;
+  font-size: 17px;
+}
+.kds-pedido__itens li > span:last-child {
+  display: flex;
+  flex-direction: column;
+}
+.kds-pedido__itens small {
+  font-size: 14px;
+  color: var(--texto-2);
+}
+.kds-pedido__itens em {
+  font-size: 14px;
+  color: var(--amarelo);
+  font-weight: 700;
+}
+.kds-pedido__qtd {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  border-radius: var(--raio-p);
+  background: var(--superficie-3);
+  font-weight: 900;
+}
+.kds-pedido__balcao {
+  padding: 0 16px 10px;
+  font-size: 13px;
+  color: var(--texto-3);
+}
+.kds-pedido footer {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--borda);
+}
+.kds-voltar {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  border-radius: var(--raio-m);
+  background: var(--superficie-2);
+  color: var(--texto-2);
+}
+.kds-avancar {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  border-radius: var(--raio-m);
+  background: var(--superficie-3);
+  font-weight: 900;
+  font-size: 17px;
+}
+.kds-avancar--preparo {
+  background: var(--amarelo);
+  color: var(--marrom);
+}
+.kds-avancar--pronto {
+  background: var(--verde);
+  color: var(--branco);
+}
+
+@media (max-width: 899.98px) {
+  .kds__colunas {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+  .kds__resumo {
+    display: none;
+  }
+}
+
+/* ---------- Painel de senhas (TV do salão) ---------- */
+
+.painel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--amarelo);
+  color: var(--preto);
+  overflow: hidden;
+}
+.painel--erro {
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+.painel__topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28px 40px 0;
+}
+.painel__topo .logo {
+  filter: brightness(0);
+}
+.painel__hora {
+  font-size: 34px;
+  font-weight: 900;
+}
+.painel__corpo {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  flex: 1;
+  gap: 32px;
+  padding: 24px 40px 40px;
+}
+.painel__prontos h1 {
+  font-size: clamp(32px, 4vw, 60px);
+  letter-spacing: -0.03em;
+}
+.painel__chamada {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+  animation: chamada 900ms var(--ease-mola);
+}
+@keyframes chamada {
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.04);
+  }
+}
+.painel__senha {
+  font-size: clamp(140px, 22vw, 340px);
+  font-weight: 900;
+  line-height: 0.85;
+  letter-spacing: -0.06em;
+}
+.painel__nome {
+  font-size: clamp(36px, 5vw, 80px);
+  font-weight: 900;
+  color: var(--marrom);
+}
+.painel__espera {
+  margin-top: 24px;
+  max-width: 18ch;
+  font-size: clamp(28px, 3vw, 44px);
+  font-weight: 700;
+  color: var(--marrom);
+}
+.painel__outros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 28px;
+}
+.painel__outros li {
+  padding: 8px 18px;
+  border-radius: var(--raio-m);
+  background: var(--preto);
+  color: var(--amarelo);
+  font-size: clamp(28px, 3vw, 48px);
+  font-weight: 900;
+}
+.painel__preparando {
+  padding: 28px;
+  border-radius: 28px;
+  background: var(--preto);
+  color: var(--branco);
+  align-self: start;
+}
+.painel__preparando h2 {
+  font-size: clamp(26px, 2.6vw, 40px);
+  margin-bottom: 18px;
+}
+.painel__preparando ul {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.painel__preparando li {
+  font-size: clamp(28px, 3vw, 48px);
+  font-weight: 900;
+  color: var(--n-300);
+}
+.painel__mascote {
+  position: absolute;
+  left: 50%;
+  bottom: -40px;
+  width: 170px;
+  opacity: 0.95;
+  transform: translateX(-50%) rotate(6deg);
+  pointer-events: none;
+}
+@media (max-width: 899.98px) {
+  .painel__corpo {
+    grid-template-columns: 1fr;
+    padding: 16px 20px 120px;
+  }
+  .painel__topo {
+    padding: 20px 20px 0;
+  }
+}

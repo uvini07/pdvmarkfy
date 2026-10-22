@@ -1,9 +1,123 @@
-# pdvmarkfy
+# PDV Sua Coxinha
 
-PDV (frente de caixa + retaguarda) da Sua Coxinha, com as funcionalidades do PDV Legal e a
-identidade visual da marca.
+Sistema de ponto de venda da rede Sua Coxinha: **caixa**, **cozinha**, **painel de senhas** e
+**retaguarda**, com as funções do PDV Legal e a identidade da marca (cores, Satoshi, logo, fotos dos
+produtos e dos sabores, gota e mascote).
 
-- [`ANOTACOES-PDV.md`](ANOTACOES-PDV.md) — levantamento das telas e funções, identidade visual,
-  plano sem banco de dados e fases.
-- [`REFERENCIA-CADASTROS.md`](REFERENCIA-CADASTROS.md) — filiais, grupos, classes, modificadores e
-  produtos vistos no sistema de referência, para usar como dados de exemplo.
+Ainda **sem banco de dados**: os dados ficam no próprio navegador (IndexedDB). Toda leitura e
+gravação passa por `src/dados/banco.js`, então trocar pelo banco de verdade muda só esse arquivo.
+
+## Rodar
+
+```bash
+npm install
+npm run dev        # http://localhost:5173
+npm test           # regras de dinheiro, estoque e segurança
+npm run build      # versão para publicar, em dist/
+```
+
+No primeiro acesso o PDV pede para criar o **administrador** (login, PIN e senha) e oferece os
+**dados de demonstração**: duas semanas de vendas nas 9 filiais e três usuários de teste da Max Morumbi:
+
+| Usuário | Perfil | PIN | Senha |
+| --- | --- | --- | --- |
+| Ana Souza | Atendente | 4821 | — |
+| Bruno Lima | Gerente | 7392 | gerente2026 |
+| Cozinha Morumbi | Cozinha | 5170 | — |
+
+A retaguarda avisa enquanto esses usuários estiverem ativos. Antes de usar na loja, apague a
+demonstração em **Retaguarda › Segurança e backup**.
+
+## As quatro telas
+
+| Tela | Endereço | Quem usa |
+| --- | --- | --- |
+| Caixa | `#/caixa` | atendente, com PIN |
+| Cozinha | `#/cozinha` | cozinha, com PIN; fica ligada o dia todo |
+| Painel de senhas | `#/painel/<filial>` | TV do salão; sem login, mostra só número e primeiro nome |
+| Retaguarda | `#/admin` | gerente e franqueadora, com login e senha |
+
+Caixa, cozinha e painel abertos no **mesmo computador** (ou em abas/monitores dele) se atualizam
+sozinhos. Computadores diferentes só vão compartilhar dados quando o banco de dados entrar.
+
+### Caixa
+
+Inspirado nos PDVs de balcão mais usados (Toast, Square, Saipos):
+
+- grupos em **gotas** com a foto do produto, à esquerda; produtos com foto no meio; a **comanda**
+  (papel branco) à direita, com o botão **Cobrar** sempre à vista;
+- busca por nome, código ou **leitor de código de barras** (F2);
+- sabores e adicionais com mínimo e máximo (ex.: caixa de 50 com até 5 sabores); adicionais
+  somam preço;
+- promoções automáticas por dia, hora e filial;
+- desconto por item ou no pedido, com motivo e limite; acima do limite, **PIN do gerente**;
+- tirar item ou cancelar pedido sempre com motivo;
+- comer aqui, viagem ou encomenda; nome para chamar; CPF na nota (validado);
+- pagamento dividido em várias formas, troco com notas rápidas, senha do pedido grande na tela;
+- cupom e comanda em impressora térmica de 80 mm;
+- pedidos em espera (F4), pedidos do dia com reimpressão e cancelamento, produto esgotado;
+- abertura com fundo de troco, sangria, suprimento e **fechamento cego**;
+- atalhos: F2 busca, F8 desconto, F4 espera, F9 cobrar;
+- funciona em computador, tablet e celular.
+
+### Cozinha e painel
+
+Pedidos em três colunas (na fila, preparando, pronto) com cronômetro que muda de cor, aviso
+sonoro de pedido novo, e painel de senhas amarelo para a TV com a chamada do pedido pronto.
+
+### Retaguarda
+
+Mesma organização do PDV Legal:
+
+- **Painel**: vendido, ticket médio, cancelamentos, estornos e descontos, com comparação ao
+  período anterior; vendas por dia e por hora, mais vendidos, formas de recebimento, por filial,
+  estoque acabando. Filtros de período, horário e filiais.
+- **Cardápio**: produtos (ficha com principal, configurações, preço por filial, sabores e
+  adicionais, composição e fiscal), grupos (ordem e foto das gotas), classes, sabores e adicionais.
+- **Preços**: tabela por filial, copiar de outra filial, reajuste em lote, promoções.
+- **Estoque**: saldo por filial, entrada, saída, perda, transferência, inventário, produção e
+  **importação do XML da NF-e** do fornecedor. A venda baixa o estoque sozinha (pela composição e
+  pelos sabores escolhidos).
+- **Financeiro**: conferência dos caixas fechados; contas a pagar e receber com resultado do mês.
+- **Relatórios**: por dia, produto, forma de pagamento, atendente, filial, cancelamentos e
+  descontos, venda a venda; exporta para Excel (CSV).
+- **Pessoas**: clientes (CPF mascarado), fornecedores, usuários e perfis de acesso.
+- **Administrativo**: filiais, pontos de venda, formas de pagamento, motivos de cancelamento,
+  tipos de desconto e configurações.
+- **Comunicados** da franqueadora para as lojas (o caixa mostra os não lidos).
+- **Segurança e backup**: registro de tudo, verificação de integridade, backup e restauração.
+
+## Segurança
+
+Resumo em [`SEGURANCA.md`](SEGURANCA.md): PIN e senha só como hash PBKDF2, bloqueio por tentativas,
+perfis com permissões, autorização de gerente, bloqueio de tela por inatividade, registro de
+auditoria encadeado por hash, backup com soma de verificação, CSV sem injeção de fórmula, CPF
+mascarado e cabeçalhos de segurança na publicação. O mesmo arquivo lista o que precisa de servidor
+para valer em produção.
+
+## Estrutura
+
+```
+src/
+  dados/        banco (IndexedDB), cardápio inicial, vendas, caixa, estoque, preços,
+                usuários, permissões, auditoria, backup, relatórios, demonstração
+  estado/       sessão do usuário
+  lib/          dinheiro (centavos), datas, validação, segurança (hash), CSV, NF-e
+  componentes/  botões, campos, janelas, tabela, gráficos, teclado de PIN, impressão
+  telas/        Configuracao, Entrar, Bloqueio
+    caixa/      Caixa, Catalogo, Comanda, EscolhaProduto, Pagamento, Desconto…
+    cozinha/    Cozinha, PainelSenhas
+    admin/      Painel, Produtos, Grupos, Modificadores, Precos, Estoque, Financeiro…
+  estilos/      tokens da marca, base, componentes e um arquivo por área
+public/
+  fontes/       Satoshi (licença livre para uso comercial)
+  marca/        logo, gota, selo (do site)
+  fotos/        produtos, sabores e molhos (do site, em .webp)
+testes/         node --test
+```
+
+## Documentos
+
+- [`ANOTACOES-PDV.md`](ANOTACOES-PDV.md) — levantamento do vídeo do PDV Legal.
+- [`REFERENCIA-CADASTROS.md`](REFERENCIA-CADASTROS.md) — cadastros vistos no vídeo.
+- [`SEGURANCA.md`](SEGURANCA.md) — proteções e o que falta para produção.

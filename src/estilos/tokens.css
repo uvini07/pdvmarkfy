@@ -1,0 +1,121 @@
+/* Tokens do PDV. As cores da marca saem da guia oficial da Sua Coxinha (as
+   mesmas do app e do site); nada foi inventado. A letra é a Satoshi em todo o
+   sistema — a Brown Beige, a letra do logo, não entra aqui porque a licença
+   comercial ainda não foi comprada e este repositório é público. O logo é SVG
+   e já carrega a letra da marca. */
+
+@font-face {
+  font-family: 'Satoshi';
+  src: url('/fontes/Satoshi-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Satoshi';
+  src: url('/fontes/Satoshi-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Satoshi';
+  src: url('/fontes/Satoshi-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Satoshi';
+  src: url('/fontes/Satoshi-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-display: swap;
+}
+
+:root {
+  /* ---------- Marca ---------- */
+  --amarelo: #f9c115; /* amarelo coxinha */
+  --amarelo-claro: #ffeb4a; /* amarelo mágico */
+  --amarelo-suave: #fff4c2;
+  --ouro: #e0a50c;
+  --ouro-escuro: #c98a0a;
+  --casca: #8a5a06; /* a cor da casca frita */
+  --marrom: #462302; /* marrom churros */
+  --preto: #131313; /* preto gourmet */
+  --branco: #ffffff;
+
+  /* ---------- Neutros ---------- */
+  --n-950: #0e0e0e;
+  --n-900: #181818;
+  --n-850: #1e1e1e;
+  --n-800: #262626;
+  --n-700: #333333;
+  --n-600: #474747;
+  --n-500: #6b6b68;
+  --n-400: #8f8f8b;
+  --n-300: #bdbdb8;
+  --n-200: #dededa;
+  --n-150: #e9e9e6;
+  --n-100: #f1f1ef;
+  --n-050: #f7f7f6;
+
+  /* ---------- Sinais ---------- */
+  --verde: #17844a;
+  --verde-vivo: #3dd68c;
+  --verde-fundo: #e3f6eb;
+  --vermelho: #c62c22;
+  --vermelho-vivo: #ff5a5a;
+  --vermelho-fundo: #fdeceb;
+  --azul: #1d6fc2;
+  --azul-vivo: #5ac8fa;
+  --azul-fundo: #e6f1fb;
+  --laranja: #b85c00;
+  --laranja-vivo: #ffb020;
+  --laranja-fundo: #fff2dd;
+
+  /* ---------- Forma ---------- */
+  --raio-p: 8px;
+  --raio-m: 12px;
+  --raio-g: 18px;
+  --raio-pill: 999px;
+
+  --sombra-baixa: 0 1px 2px rgba(19, 19, 19, 0.08);
+  --sombra-media: 0 6px 20px -6px rgba(19, 19, 19, 0.22);
+  --sombra-alta: 0 24px 60px -12px rgba(0, 0, 0, 0.45);
+
+  --fonte: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+
+  --ease-saida: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-mola: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --duracao: 160ms;
+}
+
+/* Tema claro: retaguarda. Tema escuro: caixa, cozinha e telas de acesso. */
+.tema-claro {
+  --fundo: #f3f3f1;
+  --superficie: #ffffff;
+  --superficie-2: var(--n-050);
+  --superficie-3: var(--n-100);
+  --borda: var(--n-150);
+  --borda-forte: var(--n-200);
+  --texto: var(--preto);
+  --texto-2: #52524f;
+  --texto-3: var(--n-500);
+  --realce: var(--amarelo);
+  --realce-texto: var(--marrom);
+  --anel: var(--preto);
+  color-scheme: light;
+}
+
+.tema-escuro {
+  --fundo: var(--preto);
+  --superficie: var(--n-850);
+  --superficie-2: var(--n-800);
+  --superficie-3: var(--n-700);
+  --borda: #2c2c2c;
+  --borda-forte: var(--n-600);
+  --texto: var(--branco);
+  --texto-2: var(--n-300);
+  --texto-3: var(--n-400);
+  --realce: var(--amarelo);
+  --realce-texto: var(--marrom);
+  --anel: var(--amarelo);
+  color-scheme: dark;
+}
