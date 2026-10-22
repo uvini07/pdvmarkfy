@@ -113,6 +113,9 @@
   background: var(--vermelho-fundo);
   color: var(--vermelho);
 }
+.botao-icone--contorno {
+  box-shadow: inset 0 0 0 1.5px var(--borda-forte);
+}
 .tema-escuro .botao-icone--perigo:hover:not(:disabled) {
   background: rgba(255, 90, 90, 0.14);
   color: var(--vermelho-vivo);

@@ -3,7 +3,7 @@
 // preços e fotos vêm do site da Sua Coxinha (src/lojas/cajamar/produtos.js).
 // Tudo isto pode ser alterado depois pela retaguarda.
 
-import { PERFIS_PADRAO } from './permissoes.js'
+import { PERFIS_PADRAO, PERMISSOES_NOVAS } from './permissoes.js'
 
 const foto = (caminho) => `/fotos/${caminho}.webp`
 
@@ -409,5 +409,12 @@ export const CONFIG_INICIAL = {
   imprimirComandaAuto: true,
   tipoPedidoPadrao: 'balcao',
   alertaCozinhaMin: 8,
+  // Mesas: taxa de serviço (0 = não cobra), aviso de mesa sem pedido e se o
+  // caixa pergunta quantas pessoas sentaram
+  servicoPercentual: 10,
+  alertaMesaMin: 20,
+  perguntarPessoas: true,
   planoContas: PLANO_DE_CONTAS,
+  // Instalação nova já nasce com os perfis atualizados
+  permissoesAplicadas: PERMISSOES_NOVAS.map((n) => n.chave),
 }

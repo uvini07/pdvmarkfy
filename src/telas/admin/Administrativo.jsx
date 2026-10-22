@@ -164,6 +164,10 @@ export function Configuracoes() {
       bloqueioMinutos: Math.min(60, Math.max(1, Number(dados.bloqueioMinutos) || 5)),
       sessaoHoras: Math.min(24, Math.max(1, Number(dados.sessaoHoras) || 12)),
       alertaCozinhaMin: Math.min(60, Math.max(1, Number(dados.alertaCozinhaMin) || 8)),
+      // Instalação antiga não tem o campo: vale o padrão de 10%, não zero
+      servicoPercentual: Math.min(20, Math.max(0, Math.round((Number(dados.servicoPercentual ?? 10) || 0) * 10) / 10)),
+      alertaMesaMin: Math.min(180, Math.max(5, Number(dados.alertaMesaMin) || 20)),
+      perguntarPessoas: dados.perguntarPessoas !== false,
       pedirCpf: Boolean(dados.pedirCpf),
       imprimirComandaAuto: Boolean(dados.imprimirComandaAuto),
       tipoPedidoPadrao: dados.tipoPedidoPadrao,
@@ -196,6 +200,20 @@ export function Configuracoes() {
             <Campo rotulo="Encerrar a sessão depois de (horas)" ajuda="Depois disso é preciso entrar de novo. Recomendado: 12 (um turno).">
               {(p) => <Entrada {...p} type="number" min={1} max={24} value={dados.sessaoHoras} onChange={(e) => mudar('sessaoHoras')(e.target.value)} />}
             </Campo>
+          </div>
+        </Cartao>
+        <Cartao titulo="Mesas">
+          <div className="pilha">
+            <Campo rotulo="Taxa de serviço (%)" ajuda="Entra na conta das mesas, separada do consumo. É opcional para o cliente: o caixa pode tirar. Use 0 para não cobrar.">
+              {(p) => <Entrada {...p} type="number" min={0} max={20} step={0.5} value={dados.servicoPercentual ?? 10} onChange={(e) => mudar('servicoPercentual')(e.target.value)} />}
+            </Campo>
+            <Campo rotulo="Avisar mesa sem pedido depois de (minutos)" ajuda="A mesa ganha contorno laranja no mapa: alguém precisa passar lá.">
+              {(p) => <Entrada {...p} type="number" min={5} max={180} value={dados.alertaMesaMin ?? 20} onChange={(e) => mudar('alertaMesaMin')(e.target.value)} />}
+            </Campo>
+            <Alternador rotulo="Perguntar quantas pessoas ao abrir a mesa" ligado={dados.perguntarPessoas !== false} aoMudar={mudar('perguntarPessoas')} descricao="Serve para dividir a conta e para o gasto por pessoa nos relatórios." />
+            <a className="link" href="#/admin/salao">
+              Montar o salão desta filial
+            </a>
           </div>
         </Cartao>
         <Cartao titulo="Cozinha">

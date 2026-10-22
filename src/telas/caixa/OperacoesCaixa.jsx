@@ -13,7 +13,9 @@ import { reais } from '../../lib/dinheiro.js'
 import { hora } from '../../lib/datas.js'
 import { textoLimpo } from '../../lib/validacao.js'
 
-export function AberturaCaixa() {
+// aoSoMesas: na loja com salão, o aparelho do garçom pode entrar só para
+// lançar nas mesas, sem abrir caixa (sem fundo de troco nem fechamento).
+export function AberturaCaixa({ aoSoMesas }) {
   const { usuario, filial, pdv, pode } = useSessao()
   const caixas = useColecao('caixas')
   const [fundo, setFundo] = useState(15000)
@@ -49,6 +51,14 @@ export function AberturaCaixa() {
         <Botao tamanho="g" bloco onClick={abrir} carregando={ocupado}>
           Abrir caixa com {reais(fundo)}
         </Botao>
+        {aoSoMesas && (
+          <div className="abertura__mesas">
+            <Botao variante="secundario" bloco icone="mesa" onClick={aoSoMesas}>
+              Só lançar nas mesas
+            </Botao>
+            <p className="mudo">Para o celular ou tablet do garçom: abre mesas e manda os pedidos para a cozinha, sem caixa. Receber fica para o caixa da loja.</p>
+          </div>
+        )}
         <Botao variante="fantasma" bloco onClick={() => sessao.sair()}>
           Sair
         </Botao>
@@ -190,6 +200,7 @@ export function FechamentoCaixa({ caixa, aoFechar }) {
         </table>
         <p className="mudo" style={{ marginTop: 12 }}>
           {fechado.diferenca === 0 ? 'Bateu certinho.' : 'A diferença fica registrada para a conferência do gerente na retaguarda.'}
+          {r.servico > 0 && ` Neste caixa entraram ${reais(r.servico)} de taxa de serviço das mesas, para repassar.`}
         </p>
       </Modal>
     )

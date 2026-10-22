@@ -36,6 +36,7 @@ export const PERMISSOES = [
       ['admin.pessoas', 'Clientes e fornecedores'],
       ['admin.usuarios', 'Usuários e perfis de acesso'],
       ['admin.config', 'Filiais, formas de pagamento e configurações'],
+      ['admin.salao', 'Montar o salão e acompanhar as mesas'],
       ['admin.comunicados', 'Publicar comunicados para as lojas'],
       ['admin.auditoria', 'Ver o registro de segurança'],
       ['admin.backup', 'Exportar e restaurar os dados'],
@@ -72,6 +73,7 @@ export const PERFIS_PADRAO = [
       'admin.financeiro',
       'admin.relatorios',
       'admin.pessoas',
+      'admin.salao',
       'dados.cpfCompleto',
     ],
   },
@@ -79,9 +81,16 @@ export const PERFIS_PADRAO = [
   { id: 'perfil-cozinha', nome: 'Cozinha', descricao: 'Só a tela da cozinha.', permissoes: ['cozinha.ver'] },
 ]
 
+// Permissões criadas depois da primeira versão. Entram uma única vez nos
+// perfis padrão que já estavam gravados no navegador (ver atualizarDados); se
+// o administrador tirar depois, não voltam.
+export const PERMISSOES_NOVAS = [{ chave: 'admin.salao', perfis: ['perfil-gerente'] }]
+
 export function permissoesDe(usuario, perfis) {
   if (!usuario) return []
   const perfil = perfis.find((p) => p.id === usuario.perfilId)
+  // O Administrador é fixo e tem tudo, inclusive o que surgir em versões novas
+  if (perfil?.sistema) return TODAS
   return perfil?.permissoes || []
 }
 

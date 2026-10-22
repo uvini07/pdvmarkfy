@@ -5,7 +5,7 @@
 import { useMemo, useState } from 'react'
 import { useColecao } from '../../dados/banco.js'
 import { useSessao } from '../../estado/sessao.js'
-import { filtrarVendas, resumo, porHora, porDia, porForma, porProduto, porFilial, variacao } from '../../dados/relatorios.js'
+import { filtrarVendas, resumo, resumoMesas, porHora, porDia, porForma, porProduto, porFilial, variacao } from '../../dados/relatorios.js'
 import { Pagina, Cartao } from '../../componentes/Pagina.jsx'
 import { Colunas, Barras } from '../../componentes/graficos.jsx'
 import { FiltroPeriodo, SeletorFiliais, intervaloDe, intervaloAnterior, rotuloIntervalo } from '../../componentes/filtros.jsx'
@@ -54,6 +54,7 @@ export function Painel() {
   const formasPag = porForma(atuais, formas)
   const maisVendidos = porProduto(atuais)
   const filiaisRank = porFilial(atuais, filiaisPermitidas.filter((f) => filiais.includes(f.id)))
+  const mesas = resumoMesas(atuais)
 
   const estoqueBaixo = produtos
     .filter((p) => p.ativo && p.tipo === 'venda' && p.config.controlaEstoque && !p.composicao?.length)
@@ -134,6 +135,32 @@ export function Painel() {
           {!umDia && (
             <Cartao titulo="Vendas por hora (média do período)">
               <Colunas titulo="Vendas por hora" dados={horas.map((h) => ({ ...h, total: Math.round(h.total / dias.length) }))} rotulo={(h) => `${h.hora}h`} valor={(h) => h.total} formatar={reais} altura={200} />
+            </Cartao>
+          )}
+
+          {mesas.contas > 0 && (
+            <Cartao titulo="Mesas" acao={<a className="link" href="#/admin/mesas">Ver agora</a>}>
+              <div className="resumo-caixa">
+                <div>
+                  <span>Contas fechadas</span>
+                  <strong className="numero">{mesas.contas}</strong>
+                </div>
+                <div>
+                  <span>Gasto por pessoa</span>
+                  <strong className="numero">{mesas.pessoas ? reais(mesas.porPessoa) : '—'}</strong>
+                </div>
+                <div>
+                  <span>Tempo médio na mesa</span>
+                  <strong className="numero">{mesas.tempoMedio} min</strong>
+                </div>
+                <div>
+                  <span>Taxa de serviço</span>
+                  <strong className="numero">{reais(mesas.servico)}</strong>
+                </div>
+              </div>
+              <p className="mudo">
+                {Math.round((mesas.total / Math.max(1, r.total)) * 100)}% do vendido no período foi em mesa ({reais(mesas.total)}). A taxa de serviço fica fora do vendido.
+              </p>
             </Cartao>
           )}
 

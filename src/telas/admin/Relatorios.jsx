@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useColecao } from '../../dados/banco.js'
 import { registrar } from '../../dados/auditoria.js'
 import { useSessao } from '../../estado/sessao.js'
-import { filtrarVendas, porDia, porForma, porOperador, porProduto, porFilial, resumo } from '../../dados/relatorios.js'
+import { filtrarVendas, porDia, porForma, porGarcom, porMesa, porOperador, porProduto, porFilial, resumo } from '../../dados/relatorios.js'
 import { nomeTipoPedido } from '../../dados/vendas.js'
 import { Pagina } from '../../componentes/Pagina.jsx'
 import { Tabela } from '../../componentes/Tabela.jsx'
@@ -20,6 +20,8 @@ const RELATORIOS = [
   { id: 'formas', nome: 'Por forma de pagamento' },
   { id: 'operadores', nome: 'Por atendente' },
   { id: 'filiais', nome: 'Por filial' },
+  { id: 'mesas', nome: 'Por mesa' },
+  { id: 'garcons', nome: 'Serviço por garçom' },
   { id: 'cancelamentos', nome: 'Cancelamentos e descontos' },
   { id: 'vendas', nome: 'Vendas uma a uma' },
 ]
@@ -98,10 +100,35 @@ export function Relatorios() {
             { id: 'total', titulo: 'Total', alinhar: 'direita', render: (f) => <strong>{reais(f.total)}</strong>, csv: (f) => valor(f.total) },
           ],
         }
+      case 'mesas':
+        return {
+          linhas: porMesa(lista),
+          colunas: [
+            { id: 'nome', titulo: 'Mesa' },
+            { id: 'ambiente', titulo: 'Ambiente' },
+            { id: 'contas', titulo: 'Contas', alinhar: 'direita' },
+            { id: 'pessoas', titulo: 'Pessoas', alinhar: 'direita' },
+            { id: 'tempoMedio', titulo: 'Tempo médio', alinhar: 'direita', render: (m) => `${m.tempoMedio} min`, csv: (m) => m.tempoMedio },
+            { id: 'porPessoa', titulo: 'Por pessoa', alinhar: 'direita', render: (m) => (m.pessoas ? reais(m.porPessoa) : '—'), csv: (m) => valor(m.porPessoa) },
+            { id: 'servico', titulo: 'Taxa de serviço', alinhar: 'direita', render: (m) => reais(m.servico), csv: (m) => valor(m.servico) },
+            { id: 'total', titulo: 'Consumo', alinhar: 'direita', render: (m) => <strong>{reais(m.total)}</strong>, csv: (m) => valor(m.total) },
+          ],
+        }
+      case 'garcons':
+        return {
+          linhas: porGarcom(lista),
+          colunas: [
+            { id: 'nome', titulo: 'Garçom (quem abriu a mesa)' },
+            { id: 'contas', titulo: 'Contas', alinhar: 'direita' },
+            { id: 'pessoas', titulo: 'Pessoas', alinhar: 'direita' },
+            { id: 'total', titulo: 'Consumo', alinhar: 'direita', render: (g) => reais(g.total), csv: (g) => valor(g.total) },
+            { id: 'servico', titulo: 'Taxa de serviço', alinhar: 'direita', render: (g) => <strong>{reais(g.servico)}</strong>, csv: (g) => valor(g.servico) },
+          ],
+        }
       case 'cancelamentos': {
         const linhas = []
         for (const v of lista) {
-          if (v.status !== 'concluida') linhas.push({ id: v.id, em: v.encerramento?.em || v.criadoEm, filial: nomeFilial(v.filialId), tipo: v.status === 'cancelada' ? (v.antesDoPagamento ? 'Pedido cancelado antes de cobrar' : 'Venda cancelada') : 'Venda estornada', descricao: `Pedido ${v.numero || '—'}`, valor: v.total, motivo: v.encerramento?.motivo, quem: v.encerramento?.usuarioNome, autorizou: v.encerramento?.autorizadorNome })
+          if (v.status !== 'concluida') linhas.push({ id: v.id, em: v.encerramento?.em || v.criadoEm, filial: nomeFilial(v.filialId), tipo: v.status === 'cancelada' ? (v.antesDoPagamento ? (v.mesa ? 'Conta de mesa cancelada' : 'Pedido cancelado antes de cobrar') : 'Venda cancelada') : 'Venda estornada', descricao: v.numero ? `Pedido ${v.numero}${v.mesa ? `, ${v.mesa.nome}` : ''}` : v.mesa?.nome || 'Pedido —', valor: v.total, motivo: v.encerramento?.motivo, quem: v.encerramento?.usuarioNome, autorizou: v.encerramento?.autorizadorNome })
           for (const [k, c] of (v.itensCancelados || []).entries()) linhas.push({ id: `${v.id}-c${k}`, em: c.em, filial: nomeFilial(v.filialId), tipo: 'Item cancelado', descricao: `${c.qtd}× ${c.nome}`, valor: c.total ?? c.precoUnit * c.qtd, motivo: c.motivo, quem: c.por || v.operadorNome, autorizou: c.autorizadoPor })
           if (v.status === 'concluida' && v.descontos) linhas.push({ id: `${v.id}-d`, em: v.criadoEm, filial: nomeFilial(v.filialId), tipo: 'Desconto', descricao: `Pedido ${v.numero}${v.descontoPedido ? `: ${v.descontoPedido.nome}` : ''}`, valor: v.descontos, motivo: v.descontoPedido?.nome || v.itens.find((i) => i.desconto)?.desconto?.nome || '', quem: v.operadorNome, autorizou: v.descontoPedido?.autorizadoPor })
         }
@@ -126,11 +153,12 @@ export function Relatorios() {
             { id: 'criadoEm', titulo: 'Quando', valor: (v) => dataHora(v.criadoEm) },
             { id: 'filial', titulo: 'Filial', valor: (v) => nomeFilial(v.filialId) },
             { id: 'numero', titulo: 'Pedido', alinhar: 'direita' },
-            { id: 'tipo', titulo: 'Tipo', valor: (v) => nomeTipoPedido(v.tipo) },
+            { id: 'tipo', titulo: 'Tipo', valor: (v) => (v.mesa ? v.mesa.nome : nomeTipoPedido(v.tipo)) },
             { id: 'operadorNome', titulo: 'Atendente' },
             { id: 'itens', titulo: 'Itens', valor: (v) => v.itens.map((i) => `${i.qtd}× ${i.nome}`).join(', ') },
             { id: 'pagamento', titulo: 'Pagamento', valor: (v) => v.pagamentos.map((p) => nomeForma(p.formaId)).join(' + ') },
             { id: 'status', titulo: 'Situação', valor: (v) => ({ concluida: 'Concluída', cancelada: 'Cancelada', estornada: 'Estornada' })[v.status] },
+            { id: 'servico', titulo: 'Serviço', alinhar: 'direita', render: (v) => (v.servico ? reais(v.servico) : ''), csv: (v) => (v.servico ? valor(v.servico) : '') },
             { id: 'total', titulo: 'Total', alinhar: 'direita', render: (v) => reais(v.total), csv: (v) => valor(v.total) },
           ],
         }
