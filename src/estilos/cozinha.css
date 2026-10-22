@@ -211,6 +211,21 @@
   .kds__resumo {
     display: none;
   }
+  .kds__topo {
+    gap: 10px;
+    padding: 0 6px 0 12px;
+  }
+  .kds__topo h1 {
+    flex: 1;
+    min-width: 0;
+    font-size: 18px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .kds__topo > .mudo {
+    display: none;
+  }
 }
 
 /* ---------- Painel de senhas (TV do salão) ---------- */
@@ -337,5 +352,11 @@
   }
   .painel__topo {
     padding: 20px 20px 0;
+  }
+}
+
+@media (max-width: 479.98px) {
+  .kds__topo h1 .mudo {
+    display: none;
   }
 }
