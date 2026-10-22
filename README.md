@@ -38,7 +38,8 @@ demonstração em **Retaguarda › Segurança e backup**.
 | Retaguarda | `#/admin` | gerente e franqueadora, com login e senha |
 
 Caixa, cozinha e painel abertos no **mesmo computador** (ou em abas/monitores dele) se atualizam
-sozinhos. Computadores diferentes só vão compartilhar dados quando o banco de dados entrar.
+sozinhos. Computadores diferentes só vão compartilhar dados quando o banco de dados entrar — vale
+também para as mesas: o celular do garçom só enxerga as contas do caixa quando houver servidor.
 
 ### Caixa
 
@@ -57,8 +58,30 @@ Inspirado nos PDVs de balcão mais usados (Toast, Square, Saipos):
 - cupom e comanda em impressora térmica de 80 mm;
 - pedidos em espera (F4), pedidos do dia com reimpressão e cancelamento, produto esgotado;
 - abertura com fundo de troco, sangria, suprimento e **fechamento cego**;
-- atalhos: F2 busca, F8 desconto, F4 espera, F9 cobrar;
+- atalhos: F2 busca, F8 desconto, F4 espera, F6 mesas, F9 cobrar (ou lançar na mesa);
 - funciona em computador, tablet e celular.
+
+### Mesas
+
+Nas lojas com o salão montado na retaguarda, o caixa ganha o botão **Mesas** (F6), com o mapa ou
+a lista das mesas ao vivo: livre, ocupada (amarelo), pediu a conta (azul), sem pedido há tempo
+(contorno laranja) e prato pronto para servir (selo verde), com tempo, valor e pessoas.
+
+- **Atribuir o pedido à mesa**: o atendente monta o pedido e toca em **Mesa** na comanda; o botão
+  amarelo vira **Lançar na mesa** e os itens vão na hora para a cozinha. Ou abre a mesa pelo mapa
+  (com quantas pessoas e um nome, se quiser) e lança dali.
+- A conta da mesa junta as rodadas de pedido, cada uma com o andamento na cozinha (na fila,
+  preparando, pronto, servido). A cozinha vê **Mesa 5** em destaque e o caixa recebe o aviso quando
+  o prato fica pronto.
+- **Pré-conta** impressa para o cliente conferir; **taxa de serviço** (10%, configurável e opcional
+  para o cliente); **desconto** na conta; **dividir em partes iguais**; **pagamento parcial** de quem
+  vai embora antes, guardado na conta; **fechar a conta**, que vira uma venda como as do balcão.
+- **Trocar de mesa**, **juntar mesas**, **mover um item** lançado na mesa errada (sem a cozinha
+  fazer de novo) e **cancelar item ou conta** com motivo e, se preciso, autorização de gerente.
+- O caixa não fecha enquanto houver conta aberta com dinheiro recebido nele, e avisa das mesas
+  ainda abertas.
+- O celular ou tablet do garçom pode entrar **só para as mesas**, sem abrir caixa: abre mesas e
+  manda os pedidos para a cozinha; receber fica para o caixa.
 
 ### Cozinha e painel
 
@@ -67,7 +90,7 @@ sonoro de pedido novo, e painel de senhas amarelo para a TV com a chamada do ped
 
 ### Retaguarda
 
-Mesma organização do PDV Legal:
+Mesma organização do PDV Legal, mais o salão:
 
 - **Painel**: vendido, ticket médio, cancelamentos, estornos e descontos, com comparação ao
   período anterior; vendas por dia e por hora, mais vendidos, formas de recebimento, por filial,
@@ -79,8 +102,16 @@ Mesma organização do PDV Legal:
   **importação do XML da NF-e** do fornecedor. A venda baixa o estoque sozinha (pela composição e
   pelos sabores escolhidos).
 - **Financeiro**: conferência dos caixas fechados; contas a pagar e receber com resultado do mês.
-- **Relatórios**: por dia, produto, forma de pagamento, atendente, filial, cancelamentos e
-  descontos, venda a venda; exporta para Excel (CSV).
+- **Salão e mesas**: **Montar o salão** é um editor de planta em que o cliente desenha a loja como
+  ela é, separada por ambientes (salão, varanda, 2º andar…): mesas quadradas, retangulares,
+  redondas e banquetas com as cadeiras, e referências como balcão, parede, porta, planta, área e
+  texto. Arrastar, girar, mudar o tamanho, alinhar, duplicar, várias mesas de uma vez, grade,
+  zoom, desfazer e atalhos de teclado; tudo salvo sozinho. Começa de um modelo pronto ou copiando o
+  salão de outra filial. **Mesas agora** mostra o salão ao vivo, os números do dia e o que pede
+  atenção (prato pronto esperando, conta pedida, mesa sem pedido, mesa aberta há horas).
+- **Relatórios**: por dia, produto, forma de pagamento, atendente, filial, mesa (contas, pessoas,
+  tempo médio, gasto por pessoa), taxa de serviço por garçom, cancelamentos e descontos, venda a
+  venda; exporta para Excel (CSV).
 - **Pessoas**: clientes (CPF mascarado), fornecedores, usuários e perfis de acesso.
 - **Administrativo**: filiais, pontos de venda, formas de pagamento, motivos de cancelamento,
   tipos de desconto e configurações.
@@ -100,14 +131,17 @@ para valer em produção.
 ```
 src/
   dados/        banco (IndexedDB), cardápio inicial, vendas, caixa, estoque, preços,
-                usuários, permissões, auditoria, backup, relatórios, demonstração
+                usuários, permissões, auditoria, backup, relatórios, demonstração,
+                salão (planta) e mesas (contas e rodadas)
   estado/       sessão do usuário
   lib/          dinheiro (centavos), datas, validação, segurança (hash), CSV, NF-e
-  componentes/  botões, campos, janelas, tabela, gráficos, teclado de PIN, impressão
+  componentes/  botões, campos, janelas, tabela, gráficos, teclado de PIN, impressão,
+                desenho do salão e conta da mesa
   telas/        Configuracao, Entrar, Bloqueio
-    caixa/      Caixa, Catalogo, Comanda, EscolhaProduto, Pagamento, Desconto…
+    caixa/      Caixa, Catalogo, Comanda, EscolhaProduto, Pagamento, Desconto, Mesas…
     cozinha/    Cozinha, PainelSenhas
-    admin/      Painel, Produtos, Grupos, Modificadores, Precos, Estoque, Financeiro…
+    admin/      Painel, Produtos, Grupos, Modificadores, Precos, Estoque, Financeiro,
+                Salao (editor), MesasAgora…
   estilos/      tokens da marca, base, componentes e um arquivo por área
 public/
   fontes/       Satoshi (licença livre para uso comercial)

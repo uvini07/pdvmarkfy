@@ -23,6 +23,8 @@ import { Usuarios, Perfis } from './Usuarios.jsx'
 import { Filiais, PontosVenda, FormasPagamento, MotivosCancelamento, TiposDesconto, Configuracoes } from './Administrativo.jsx'
 import { Comunicados } from './Comunicados.jsx'
 import { Seguranca } from './Seguranca.jsx'
+import { Salao } from './Salao.jsx'
+import { MesasAgora } from './MesasAgora.jsx'
 
 export const MENU = [
   { id: 'painel', nome: 'Painel', icone: 'grafico', permissao: 'admin.dashboard', tela: Painel },
@@ -58,6 +60,14 @@ export const MENU = [
     itens: [
       { id: 'caixas', nome: 'Conferência de caixa', permissao: 'admin.financeiro', tela: ConferenciaCaixa },
       { id: 'contas', nome: 'Contas a pagar e receber', permissao: 'admin.financeiro', tela: Contas },
+    ],
+  },
+  {
+    nome: 'Salão e mesas',
+    icone: 'mesa',
+    itens: [
+      { id: 'mesas', nome: 'Mesas agora', permissao: ['admin.salao', 'admin.dashboard'], tela: MesasAgora },
+      { id: 'salao', nome: 'Montar o salão', permissao: 'admin.salao', tela: Salao },
     ],
   },
   { id: 'relatorios', nome: 'Relatórios', icone: 'nota', permissao: 'admin.relatorios', tela: Relatorios },

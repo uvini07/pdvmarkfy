@@ -32,7 +32,9 @@ const VENDAS_DIA = {
   'f-fabrica': 6,
 }
 
-export function gerarHistorico({ produtos, gruposModificadores, filiais, formas, operadores, dias = 14 }) {
+// mesas: { filialId: [mesas do salão] } — nas lojas com salão, parte das vendas
+// é de mesa (com pessoas, tempo de ocupação e 10% de serviço).
+export function gerarHistorico({ produtos, gruposModificadores, filiais, formas, operadores, mesas = {}, dias = 14 }) {
   const rnd = aleatorio(20261022)
   const escolher = (lista) => lista[Math.floor(rnd() * lista.length)]
   const vendaveis = produtos.filter((p) => p.tipo === 'venda')
@@ -78,10 +80,14 @@ export function gerarHistorico({ produtos, gruposModificadores, filiais, formas,
         }
         const total = itens.reduce((t, i) => t + i.total, 0)
         const forma = rnd() < 0.42 ? formas[1] : rnd() < 0.5 ? formas[3] : rnd() < 0.6 ? formas[2] : rnd() < 0.7 ? formas[0] : formas[4]
-        const pago = forma.tipo === 'dinheiro' ? Math.ceil(total / 1000) * 1000 : total
         const r = rnd()
         const status = r < 0.012 ? 'cancelada' : r < 0.016 ? 'estornada' : 'concluida'
         const operador = escolher(operadoresFilial.length ? operadoresFilial : operadores)
+        const salao = mesas[filial.id]
+        const mesa = salao?.length && rnd() < 0.35 ? escolher(salao) : null
+        const servico = mesa ? Math.round(total * 0.1) : 0
+        const pago = forma.tipo === 'dinheiro' ? Math.ceil((total + servico) / 1000) * 1000 : total + servico
+        const minutosNaMesa = mesa ? 20 + Math.floor(rnd() * 55) : 0
         const itensCancelados =
           rnd() < 0.05 ? [{ produtoId: itens[0].produtoId, nome: itens[0].nome, qtd: 1, precoUnit: itens[0].precoUnit, total: itens[0].precoUnit, motivo: 'Cliente desistiu', em: quando.toISOString() }] : []
         vendas.push({
@@ -94,7 +100,11 @@ export function gerarHistorico({ produtos, gruposModificadores, filiais, formas,
           caixaId: null,
           operadorId: operador.id,
           operadorNome: operador.nome,
-          tipo: rnd() < 0.6 ? 'balcao' : 'viagem',
+          tipo: mesa ? 'mesa' : rnd() < 0.6 ? 'balcao' : 'viagem',
+          mesa: mesa
+            ? { id: mesa.id, nome: mesa.nome, ambienteNome: mesa.ambienteNome, pessoas: 1 + Math.floor(rnd() * Math.min(4, mesa.lugares || 2)), abertaEm: new Date(quando - minutosNaMesa * 60000).toISOString(), garcomId: operador.id, garcomNome: operador.nome, contaId: null }
+            : null,
+          servico,
           cliente: null,
           itens,
           itensCancelados,
@@ -103,9 +113,9 @@ export function gerarHistorico({ produtos, gruposModificadores, filiais, formas,
           promocoes: 0,
           descontos: 0,
           total,
-          pagamentos: [{ formaId: forma.id, valor: pago, troco: pago - total }],
+          pagamentos: [{ formaId: forma.id, valor: pago, troco: pago - total - servico }],
           status,
-          cozinha: { status: 'entregue', em: quando.toISOString() },
+          cozinha: mesa ? null : { status: 'entregue', em: quando.toISOString() },
           demonstracao: true,
         })
       }

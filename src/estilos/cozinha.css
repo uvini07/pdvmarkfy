@@ -163,6 +163,40 @@
   background: var(--superficie-3);
   font-weight: 900;
 }
+.kds-pedido__numero--mesa {
+  font-size: 26px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.kds-pedido--mesa .kds-pedido__numero {
+  padding: 4px 10px;
+  border-radius: var(--raio-m);
+  background: var(--amarelo);
+  color: var(--marrom);
+}
+.kds-pedido__item--fora > span:last-child > strong,
+.kds-pedido__item--fora .kds-pedido__qtd {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+.kds-pedido__cancelado,
+.kds-pedido__movido {
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.kds-pedido__cancelado {
+  color: var(--vermelho-vivo);
+}
+.kds-pedido__movido {
+  color: var(--azul-vivo);
+}
+.kds-pedido__obs {
+  padding: 0 16px 8px;
+  font-weight: 700;
+  color: var(--amarelo);
+}
 .kds-pedido__balcao {
   padding: 0 16px 10px;
   font-size: 13px;

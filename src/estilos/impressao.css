@@ -60,6 +60,10 @@
   font-weight: 900;
   line-height: 1;
 }
+.imp-mesa {
+  font-size: 28pt;
+  margin: 2px 0 4px;
+}
 .imp-assinatura {
   margin-top: 28px !important;
   text-align: center;

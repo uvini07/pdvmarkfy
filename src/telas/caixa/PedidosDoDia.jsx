@@ -6,7 +6,7 @@ import { Botao, Entrada, Selo } from '../../componentes/ui.jsx'
 import { avisar, confirmar, escolher, pedirAutorizacao } from '../../componentes/dialogos.jsx'
 import { imprimir } from '../../componentes/Impressao.jsx'
 import { useColecao } from '../../dados/banco.js'
-import { cancelarVenda, estornarVenda, nomeTipoPedido } from '../../dados/vendas.js'
+import { cancelarVenda, estornarVenda, nomeTipoPedido, rotuloPedido } from '../../dados/vendas.js'
 import { registrar } from '../../dados/auditoria.js'
 import { useSessao } from '../../estado/sessao.js'
 import { hoje, hora } from '../../lib/datas.js'
@@ -29,7 +29,7 @@ export function PedidosDoDia({ aoFechar }) {
     () =>
       vendas
         .filter((v) => v.filialId === filial.id && v.dia === dia && v.numero)
-        .filter((v) => !busca || String(v.numero).includes(busca.replace(/^0+/, '')) || v.cliente?.nome?.toLowerCase().includes(busca.toLowerCase()))
+        .filter((v) => !busca || String(v.numero).includes(busca.replace(/^0+/, '')) || rotuloPedido(v).toLowerCase().includes(busca.toLowerCase()))
         .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)),
     [vendas, filial.id, dia, busca],
   )
@@ -40,7 +40,7 @@ export function PedidosDoDia({ aoFechar }) {
     const caixaDaVenda = caixas.find((c) => c.id === v.caixaId)
     const estorno = caixaDaVenda && caixaDaVenda.status !== 'aberto'
     const permissao = estorno ? 'caixa.estornar' : 'caixa.cancelarVenda'
-    const acao = `${estorno ? 'Estornar' : 'Cancelar'} o pedido ${v.numero} (${reais(v.total)})`
+    const acao = `${estorno ? 'Estornar' : 'Cancelar'} o pedido ${v.numero} (${reais(v.total + (v.servico || 0))})`
     let autorizador = usuario
     if (!pode(permissao)) {
       autorizador = await pedirAutorizacao({ permissao, acao, filialId: filial.id })
@@ -48,7 +48,7 @@ export function PedidosDoDia({ aoFechar }) {
     }
     const motivo = await escolher({ titulo: `${estorno ? 'Estornar' : 'Cancelar'} o pedido ${v.numero}?`, subtitulo: 'O valor sai do caixa e o estoque volta. Escolha o motivo.', opcoes: motivos.map((m) => m.nome) })
     if (!motivo) return
-    const ok = await confirmar({ titulo: 'Confirmar?', texto: `${acao}. Devolva ${reais(v.total)} ao cliente na mesma forma de pagamento.`, botao: estorno ? 'Estornar' : 'Cancelar pedido', perigo: true })
+    const ok = await confirmar({ titulo: 'Confirmar?', texto: `${acao}. Devolva ${reais(v.total + (v.servico || 0))} ao cliente na mesma forma de pagamento.`, botao: estorno ? 'Estornar' : 'Cancelar pedido', perigo: true })
     if (!ok) return
     try {
       ;(estorno ? estornarVenda : cancelarVenda)(v.id, { motivo, usuario, autorizador })
@@ -65,23 +65,23 @@ export function PedidosDoDia({ aoFechar }) {
   }
 
   return (
-    <Modal aberto aoFechar={aoFechar} titulo="Pedidos de hoje" subtitulo={`${filial.nome}, ${lista.length} pedido(s)`} largura="gg" className="tema-escuro pedidos-dia">
+    <Modal aberto aoFechar={aoFechar} titulo="Pedidos de hoje" subtitulo={`${filial.nome}, ${lista.length} pedido(s). Mesa entra quando a conta fecha.`} largura="gg" className="tema-escuro pedidos-dia">
       <div className="pedidos-dia__layout">
         <div className="pedidos-dia__lista">
-          <Entrada icone="busca" placeholder="Número ou nome" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar pedido" />
+          <Entrada icone="busca" placeholder="Número, nome ou mesa" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar pedido" />
           <ul className="rolagem">
             {lista.map((v) => (
               <li key={v.id}>
                 <button type="button" className={`pedido-linha ${aberto === v.id ? 'pedido-linha--ativo' : ''}`} onClick={() => setAberto(v.id)}>
                   <span className="pedido-linha__numero numero">{String(v.numero).padStart(3, '0')}</span>
                   <span className="pedido-linha__info">
-                    <strong>{v.cliente?.nome || nomeTipoPedido(v.tipo)}</strong>
+                    <strong>{rotuloPedido(v)}</strong>
                     <small>
                       {hora(v.criadoEm)}, {v.itens.reduce((t, i) => t + i.qtd, 0)} item(ns)
                     </small>
                   </span>
                   <span className="pedido-linha__valor">
-                    <strong className="numero">{reais(v.total)}</strong>
+                    <strong className="numero">{reais(v.total + (v.servico || 0))}</strong>
                     <Selo tom={SELO[v.status][0]}>{SELO[v.status][1]}</Selo>
                   </span>
                 </button>
@@ -101,7 +101,7 @@ export function PedidosDoDia({ aoFechar }) {
                 <Selo tom={SELO[venda.status][0]}>{SELO[venda.status][1]}</Selo>
               </div>
               <p className="mudo">
-                {hora(venda.criadoEm)}, {nomeTipoPedido(venda.tipo)}, por {venda.operadorNome}
+                {hora(venda.criadoEm)}, {venda.mesa ? `${venda.mesa.nome}${venda.mesa.ambienteNome ? ` (${venda.mesa.ambienteNome})` : ''}` : nomeTipoPedido(venda.tipo)}, por {venda.operadorNome}
                 {venda.cozinha && `. Cozinha: ${COZINHA[venda.cozinha.status]}`}
               </p>
               <ul className="lista-simples">
@@ -120,9 +120,15 @@ export function PedidosDoDia({ aoFechar }) {
                     <span className="numero">−{reais(venda.descontos)}</span>
                   </li>
                 )}
+                {venda.servico > 0 && (
+                  <li>
+                    <span>Taxa de serviço</span>
+                    <span className="numero">{reais(venda.servico)}</span>
+                  </li>
+                )}
                 <li className="forte">
                   <span>Total</span>
-                  <span className="numero">{reais(venda.total)}</span>
+                  <span className="numero">{reais(venda.total + (venda.servico || 0))}</span>
                 </li>
                 {venda.pagamentos.map((p, n) => (
                   <li key={`p${n}`} className="mudo">

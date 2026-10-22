@@ -24,7 +24,9 @@ import { useSyncExternalStore } from 'react'
 import { novoId } from '../lib/seguranca.js'
 
 const NOME_BANCO = 'pdv-sua-coxinha'
-const VERSAO = 1
+// Versão 2: coleções do salão (ambientes) e das mesas (contasMesa, pedidosMesa).
+// Subir a versão cria só as coleções novas; os dados que já existem ficam.
+const VERSAO = 2
 
 export const COLECOES = [
   'filiais',
@@ -47,6 +49,9 @@ export const COLECOES = [
   'contas',
   'comunicados',
   'auditoria',
+  'ambientes',
+  'contasMesa',
+  'pedidosMesa',
 ]
 
 // Documentos únicos (objetos, não listas). "saldos" e "sequencias" são

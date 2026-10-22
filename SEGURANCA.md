@@ -25,6 +25,10 @@
   abrir/fechar caixa e marcar esgotado, quando o perfil não pode, pedem o PIN de um gerente da
   mesma filial na hora. Fica registrado quem pediu e quem autorizou.
 - **Filiais**: cada usuário só vê e opera as filiais dele.
+- **Permissões novas** entram sozinhas no perfil Gerente uma única vez (se o administrador tirar
+  depois, não voltam). O perfil Administrador é fixo e sempre tem todas, inclusive as que vierem.
+- **Montar o salão** tem permissão própria. Mesa com conta aberta não pode ser apagada nem tirada
+  de uso no editor.
 
 ### Dinheiro
 
@@ -33,6 +37,14 @@
   conferência do gerente.
 - Todo cancelamento, item tirado e desconto exige **motivo** e aparece nos relatórios.
 - **Senha do pedido** gerada dentro de transação do banco: dois caixas nunca repetem a senha.
+- **Mesas**: item lançado não some — cancelado ou movido, fica na rodada marcado, com quem fez,
+  o motivo e quem autorizou. Cancelar item ou conta pede a permissão de tirar item (ou o PIN de um
+  gerente); desfazer um pagamento parcial pede a de cancelar venda. Tirar a taxa de serviço fica
+  registrado.
+- **Pagamento parcial** guarda o caixa que recebeu: o fechamento de cada caixa conta o que entrou
+  nele, e o caixa não fecha enquanto uma conta aberta tiver dinheiro recebido ali.
+- As **rodadas da mesa** ficam num registro separado da conta: a cozinha mudando o andamento e o
+  caixa lançando mais na mesma hora nunca apagam a gravação um do outro.
 
 ### Registro de segurança (auditoria)
 

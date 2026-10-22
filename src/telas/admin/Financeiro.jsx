@@ -94,6 +94,12 @@ export function ConferenciaCaixa() {
                   {r.canceladas} ({reais(r.valorCancelado)})
                 </strong>
               </div>
+              {r.servico > 0 && (
+                <div>
+                  <span>Taxa de serviço (mesas)</span>
+                  <strong className="numero">{reais(r.servico)}</strong>
+                </div>
+              )}
             </div>
             <table className="tabela tabela--densa">
               <thead>

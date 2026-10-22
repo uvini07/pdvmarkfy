@@ -51,4 +51,10 @@ export function decorrido(desde, agora = Date.now()) {
   return `${h}h${doisDigitos(min % 60)}`
 }
 
+// "agora" ou "há 5 min", para frases como "ocupada há 5 min"
+export function ha(desde, agora = Date.now()) {
+  const d = decorrido(desde, agora)
+  return d === 'agora' ? 'agora' : `há ${d}`
+}
+
 export const minutosDesde = (desde, agora = Date.now()) => (agora - new Date(desde)) / 60000

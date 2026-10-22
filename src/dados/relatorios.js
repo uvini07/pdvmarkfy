@@ -115,6 +115,60 @@ export function porOperador(vendas) {
   return [...mapa.values()].sort((a, b) => b.total - a.total)
 }
 
+// Contas de mesa fechadas, por mesa: quantas, quantas pessoas, quanto tempo
+// a mesa ficou ocupada em média e quanto cada pessoa gastou.
+export function porMesa(vendas) {
+  const mapa = new Map()
+  for (const v of vendas) {
+    if (v.status !== 'concluida' || !v.mesa) continue
+    const k = v.mesa.id || v.mesa.nome
+    if (!mapa.has(k)) mapa.set(k, { id: k, nome: v.mesa.nome, ambiente: v.mesa.ambienteNome || '', contas: 0, pessoas: 0, minutos: 0, servico: 0, total: 0 })
+    const m = mapa.get(k)
+    m.nome = v.mesa.nome
+    m.contas++
+    m.pessoas += v.mesa.pessoas || 0
+    if (v.mesa.abertaEm) m.minutos += Math.max(0, (new Date(v.criadoEm) - new Date(v.mesa.abertaEm)) / 60000)
+    m.servico += v.servico || 0
+    m.total += v.total
+  }
+  return [...mapa.values()]
+    .map((m) => ({ ...m, tempoMedio: m.contas ? Math.round(m.minutos / m.contas) : 0, porPessoa: m.pessoas ? Math.round(m.total / m.pessoas) : 0 }))
+    .sort((a, b) => b.total - a.total)
+}
+
+// Taxa de serviço por garçom (quem abriu a mesa), para repassar os 10%
+export function porGarcom(vendas) {
+  const mapa = new Map()
+  for (const v of vendas) {
+    if (v.status !== 'concluida' || !v.mesa) continue
+    const k = v.mesa.garcomId || v.mesa.garcomNome || 'sem'
+    if (!mapa.has(k)) mapa.set(k, { id: k, nome: v.mesa.garcomNome || '—', contas: 0, pessoas: 0, total: 0, servico: 0 })
+    const g = mapa.get(k)
+    g.contas++
+    g.pessoas += v.mesa.pessoas || 0
+    g.total += v.total
+    g.servico += v.servico || 0
+  }
+  return [...mapa.values()].sort((a, b) => b.servico - a.servico || b.total - a.total)
+}
+
+// Números das mesas num período: contas, pessoas, ticket por pessoa, tempo
+// médio de ocupação e taxa de serviço.
+export function resumoMesas(vendas) {
+  const lista = porMesa(vendas)
+  const contas = lista.reduce((t, m) => t + m.contas, 0)
+  const pessoas = lista.reduce((t, m) => t + m.pessoas, 0)
+  const total = lista.reduce((t, m) => t + m.total, 0)
+  return {
+    contas,
+    pessoas,
+    total,
+    servico: lista.reduce((t, m) => t + m.servico, 0),
+    porPessoa: pessoas ? Math.round(total / pessoas) : 0,
+    tempoMedio: contas ? Math.round(lista.reduce((t, m) => t + m.minutos, 0) / contas) : 0,
+  }
+}
+
 export function variacao(atual, anterior) {
   if (!anterior) return null
   return Math.round(((atual - anterior) / anterior) * 1000) / 10

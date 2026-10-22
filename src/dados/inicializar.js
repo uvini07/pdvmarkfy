@@ -6,6 +6,8 @@ import { registrar } from './auditoria.js'
 import { criarSemente, CONFIG_INICIAL } from './semente.js'
 import { gerarHistorico, saldosIniciais, contasDoMes } from './demonstracao.js'
 import { salvarUsuario } from './usuarios.js'
+import { PERMISSOES_NOVAS } from './permissoes.js'
+import { aplicarModelo, mesasDoSalao } from './salao.js'
 
 export const sistemaConfigurado = (config) => Boolean(config?.configuradoEm)
 
@@ -26,6 +28,9 @@ export async function configurarSistema({ empresa, admin, demonstracao }) {
   banco.atualizar('usuarios', administrador.id, { dono: true })
 
   if (demonstracao) {
+    // A loja da demonstração já vem com o salão montado, para ver as mesas no caixa
+    const salao = aplicarModelo('salao-varanda', 'f-max-morumbi')
+    banco.substituir('ambientes', salao)
     const demos = []
     for (const d of USUARIOS_DEMO) {
       const u = await salvarUsuario({ ...d, todasFiliais: false, ativo: true })
@@ -45,6 +50,7 @@ export async function configurarSistema({ empresa, admin, demonstracao }) {
         filiais: semente.filiais,
         formas: semente.formasPagamento,
         operadores: [...operadores, ...outros],
+        mesas: { 'f-max-morumbi': mesasDoSalao(salao, 'f-max-morumbi') },
       }),
     )
     banco.substituir('saldos', saldosIniciais(semente.produtos, semente.filiais))
@@ -72,4 +78,21 @@ export async function configurarSistema({ empresa, admin, demonstracao }) {
 
 export function concluirConfiguracao() {
   banco.alterarDoc('config', { configuradoEm: new Date().toISOString() })
+}
+
+// Roda a cada abertura, antes da primeira tela: leva para os dados que já
+// estavam no navegador o que as versões novas do PDV precisam. Cada passo
+// roda uma vez só.
+export function atualizarDados() {
+  const config = banco.doc('config')
+  if (!sistemaConfigurado(config)) return
+  const feitas = config.permissoesAplicadas || []
+  const pendentes = PERMISSOES_NOVAS.filter((n) => !feitas.includes(n.chave))
+  if (!pendentes.length) return
+  for (const n of pendentes)
+    for (const id of n.perfis) {
+      const perfil = banco.obter('perfis', id)
+      if (perfil && !perfil.permissoes.includes(n.chave)) banco.atualizar('perfis', id, { permissoes: [...perfil.permissoes, n.chave] })
+    }
+  banco.alterarDoc('config', { permissoesAplicadas: [...feitas, ...pendentes.map((n) => n.chave)] })
 }

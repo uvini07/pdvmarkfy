@@ -1110,8 +1110,8 @@
     padding: 0 8px 0 14px;
     gap: 10px;
   }
-  /* "Pedidos" fica só no menu; os avisos que pedem ação continuam à vista. */
-  .caixa__topo .caixa__chip:not(.caixa__chip--alerta):not(.caixa__chip--espera) {
+  /* "Pedidos" fica só no menu; os avisos que pedem ação e as mesas continuam à vista. */
+  .caixa__topo .caixa__chip:not(.caixa__chip--alerta):not(.caixa__chip--espera):not(.caixa__chip--mesas):not(.caixa__chip--so-mesas) {
     display: none;
   }
   .caixa__grupos {

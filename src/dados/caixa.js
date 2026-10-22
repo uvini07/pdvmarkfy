@@ -32,14 +32,18 @@ export function movimentarCaixa(caixaId, { tipo, valor, motivo, usuario, autoriz
   registrar(tipo === 'sangria' ? 'caixa.sangria' : 'caixa.suprimento', `${reais(valor)}${motivo ? `: ${motivo}` : ''}`, { usuario, filialId: caixa.filialId })
 }
 
-// O que deveria haver no caixa, por forma de pagamento.
+// O que deveria haver no caixa, por forma de pagamento. Conta-se cada
+// pagamento no caixa que o recebeu: a parte de uma conta de mesa paga aqui e
+// fechada em outro caixa entra aqui.
 export function resumoCaixa(caixa, vendas, formas) {
   const doCaixa = vendas.filter((v) => v.caixaId === caixa.id)
   const concluidas = doCaixa.filter((v) => v.status === 'concluida')
   const dinheiro = formas.find((f) => f.tipo === 'dinheiro')
   const porForma = Object.fromEntries(formas.map((f) => [f.id, 0]))
-  for (const v of concluidas)
-    for (const p of v.pagamentos) porForma[p.formaId] = (porForma[p.formaId] || 0) + p.valor - (p.troco || 0)
+  for (const v of vendas) {
+    if (v.status !== 'concluida') continue
+    for (const p of v.pagamentos) if ((p.caixaId || v.caixaId) === caixa.id) porForma[p.formaId] = (porForma[p.formaId] || 0) + p.valor - (p.troco || 0)
+  }
 
   const sangrias = caixa.movimentos.filter((m) => m.tipo === 'sangria').reduce((t, m) => t + m.valor, 0)
   const suprimentos = caixa.movimentos.filter((m) => m.tipo === 'suprimento').reduce((t, m) => t + m.valor, 0)
@@ -52,6 +56,7 @@ export function resumoCaixa(caixa, vendas, formas) {
     canceladas: doCaixa.filter((v) => v.status !== 'concluida').length,
     valorCancelado: doCaixa.filter((v) => v.status !== 'concluida').reduce((t, v) => t + v.total, 0),
     descontos: concluidas.reduce((t, v) => t + (v.descontos || 0), 0),
+    servico: concluidas.reduce((t, v) => t + (v.servico || 0), 0),
     porForma,
     sangrias,
     suprimentos,

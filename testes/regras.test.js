@@ -174,3 +174,203 @@ test('cardápio inicial: códigos únicos e todo sabor obrigatório tem opção'
   for (const g of s.gruposModificadores) assert.ok(g.opcoes.length >= g.min, g.nome)
   for (const p of s.produtos) for (const gid of p.gruposModificadores) assert.ok(s.gruposModificadores.some((g) => g.id === gid), `${p.nome}: ${gid}`)
 })
+
+// ---------------------------------------------------------------------------
+// Salão e mesas
+
+import { totaisConta, valorDaParte, itensAgrupados, situacaoMesa, resumoSalao, contasComPagamentoNoCaixa } from '../src/dados/mesas.js'
+import { cadeirasDaMesa, proximoNumero, problemaNoNumero, nomeMesa, alinhar, distribuir, diferencaSalao, mesasDoSalao, aplicarModelo, MODELOS, caixaDosElementos, mesasSobrepostas } from '../src/dados/salao.js'
+import { porMesa, resumoMesas } from '../src/dados/relatorios.js'
+
+const coxinha = { id: 'i1', produtoId: 'p-g-frango', nome: 'Frango G', qtd: 2, precoUnit: 1490, modificadores: [], promocao: null, desconto: null, total: 2980 }
+const guarana = { id: 'i2', produtoId: 'p-guarana', nome: 'Guaraná', qtd: 1, precoUnit: 600, modificadores: [], promocao: null, desconto: null, total: 600 }
+
+test('conta da mesa: consumo, 10% de serviço, desconto e pagamento parcial', () => {
+  const conta = { servico: { percentual: 10 }, descontoPedido: null, pagamentos: [] }
+  const pedidos = [
+    { id: 'r1', numero: 1, itens: [coxinha] },
+    { id: 'r2', numero: 2, itens: [guarana, { ...coxinha, id: 'i3', qtd: 1, total: 1490, cancelado: { motivo: 'Desistiu' } }] },
+  ]
+  const t = totaisConta(conta, pedidos)
+  assert.equal(t.consumo, 2980 + 600, 'item cancelado fica fora')
+  assert.equal(t.servico, 358)
+  assert.equal(t.total, 3580 + 358)
+  assert.equal(t.falta, 3938)
+  // Desconto de 10% na conta: o serviço é calculado depois do desconto
+  const comDesconto = totaisConta({ ...conta, descontoPedido: { percentual: 10 } }, pedidos)
+  assert.equal(comDesconto.consumo, 3580 - 358)
+  assert.equal(comDesconto.servico, Math.round((3580 - 358) * 0.1))
+  // Pagamento parcial com troco: conta só o que ficou
+  const parcial = totaisConta({ ...conta, pagamentos: [{ valor: 5000, troco: 3000 }] }, pedidos)
+  assert.equal(parcial.pago, 2000)
+  assert.equal(parcial.falta, 3938 - 2000)
+  // Sem taxa de serviço
+  assert.equal(totaisConta({ ...conta, servico: null }, pedidos).total, 3580)
+})
+
+test('dividir a conta em partes iguais fecha no centavo', () => {
+  let restante = 10000
+  const partes = []
+  for (let n = 3; n >= 1; n--) {
+    const parte = valorDaParte(restante, n)
+    partes.push(parte)
+    restante -= parte
+  }
+  assert.deepEqual(partes, [3334, 3333, 3333])
+  assert.equal(restante, 0)
+})
+
+test('pré-conta soma itens iguais de rodadas diferentes', () => {
+  const lista = itensAgrupados([coxinha, { ...coxinha, id: 'x' }, guarana])
+  assert.equal(lista.length, 2)
+  assert.equal(lista[0].qtd, 4)
+  assert.equal(lista[0].total, 5960)
+})
+
+test('mesa sem pedido há muito tempo pede atenção; pediu a conta não', () => {
+  const agora = Date.parse('2026-10-22T20:00:00')
+  const conta = { status: 'aberta', abertaEm: '2026-10-22T19:00:00', ultimoPedidoEm: '2026-10-22T19:30:00', pagamentos: [] }
+  assert.equal(situacaoMesa({ id: 'm' }, conta, [], { agora, alertaMin: 20 }).atencao, true)
+  assert.equal(situacaoMesa({ id: 'm' }, conta, [], { agora, alertaMin: 40 }).atencao, false)
+  assert.equal(situacaoMesa({ id: 'm' }, { ...conta, status: 'fechando' }, [], { agora, alertaMin: 20 }).estado, 'fechando')
+  assert.equal(situacaoMesa({ id: 'm', ativa: false }, null, []).estado, 'inativa')
+  assert.equal(situacaoMesa({ id: 'm' }, null, []).estado, 'livre')
+})
+
+test('resumo do salão: conta de mesa apagada do mapa continua à vista', () => {
+  const mesas = [{ id: 'm1', numero: '1' }, { id: 'm2', numero: '2' }]
+  const contas = [
+    { id: 'c1', mesaId: 'm1', mesaNome: 'Mesa 1', status: 'aberta', abertaEm: new Date().toISOString(), pessoas: 2, pagamentos: [] },
+    { id: 'c9', mesaId: 'apagada', mesaNome: 'Mesa 9', status: 'fechando', abertaEm: new Date().toISOString(), pessoas: 3, pagamentos: [] },
+    { id: 'c0', mesaId: 'm2', mesaNome: 'Mesa 2', status: 'fechada', abertaEm: new Date().toISOString(), pagamentos: [] },
+  ]
+  const pedidos = [{ id: 'r1', contaId: 'c1', numero: 1, itens: [coxinha], cozinha: { status: 'pronto' } }]
+  const r = resumoSalao({ mesas, contas, pedidos })
+  assert.equal(r.ocupadas, 2)
+  assert.equal(r.livres, 1)
+  assert.equal(r.foraDoMapa.length, 1)
+  assert.equal(r.fechando, 1)
+  assert.equal(r.prontos, 1)
+  assert.equal(r.pessoas, 5)
+})
+
+test('caixa não fecha com conta de mesa aberta que já recebeu dinheiro nele', () => {
+  const contas = [
+    { id: 'a', status: 'aberta', pagamentos: [{ caixaId: 'cx1', valor: 1000 }] },
+    { id: 'b', status: 'fechada', pagamentos: [{ caixaId: 'cx1', valor: 1000 }] },
+    { id: 'c', status: 'aberta', pagamentos: [{ caixaId: 'cx2', valor: 1000 }] },
+  ]
+  assert.deepEqual(contasComPagamentoNoCaixa(contas, 'cx1').map((c) => c.id), ['a'])
+})
+
+test('fechamento de caixa: parte da mesa paga num caixa e fechada em outro', () => {
+  const formas = [{ id: 'din', tipo: 'dinheiro' }, { id: 'pix', tipo: 'pix' }]
+  const vendas = [
+    {
+      caixaId: 'cx2',
+      status: 'concluida',
+      total: 5000,
+      servico: 500,
+      pagamentos: [
+        { formaId: 'pix', valor: 2000, caixaId: 'cx1' },
+        { formaId: 'din', valor: 5000, troco: 1500, caixaId: 'cx2' },
+      ],
+    },
+  ]
+  const cx1 = resumoCaixa({ id: 'cx1', fundo: 0, movimentos: [] }, vendas, formas)
+  const cx2 = resumoCaixa({ id: 'cx2', fundo: 0, movimentos: [] }, vendas, formas)
+  assert.equal(cx1.esperado.pix, 2000)
+  assert.equal(cx1.vendido, 0, 'a venda é do caixa que fechou a conta')
+  assert.equal(cx2.esperado.din, 3500)
+  assert.equal(cx2.vendido, 5000)
+  assert.equal(cx2.servico, 500)
+})
+
+test('cadeiras: retangular de 6 lugares tem 2 em cima, 2 embaixo e 1 em cada ponta', () => {
+  const cadeiras = cadeirasDaMesa({ forma: 'retangular', w: 160, h: 80, lugares: 6 })
+  assert.equal(cadeiras.length, 6)
+  assert.equal(cadeiras.filter((c) => c.cy < 0).length, 2)
+  assert.equal(cadeiras.filter((c) => c.cy > 80).length, 2)
+  assert.equal(cadeiras.filter((c) => c.cx < 0).length, 1)
+  assert.equal(cadeirasDaMesa({ forma: 'redonda', w: 80, h: 80, lugares: 5 }).length, 5)
+  assert.equal(cadeirasDaMesa({ forma: 'banqueta', w: 40, h: 40, lugares: 1 }).length, 0)
+})
+
+test('numeração das mesas: próximo número livre e número repetido recusado', () => {
+  const ambientes = [{ elementos: [{ id: 'a', tipo: 'mesa', numero: '1' }, { id: 'b', tipo: 'mesa', numero: '3' }, { id: 'c', tipo: 'mesa', numero: 'VIP' }, { id: 'd', tipo: 'balcao' }] }]
+  assert.deepEqual(proximoNumero(ambientes, 3), ['4', '5', '6'])
+  assert.ok(problemaNoNumero(ambientes, '3', 'novo'))
+  assert.ok(problemaNoNumero(ambientes, ' vip ', 'novo'), 'sem diferença de maiúscula e espaço')
+  assert.equal(problemaNoNumero(ambientes, '3', 'b'), null, 'a própria mesa pode manter o número')
+  assert.ok(problemaNoNumero(ambientes, '  ', 'novo'))
+  assert.equal(nomeMesa({ numero: '12' }), 'Mesa 12')
+  assert.equal(nomeMesa({ numero: 'Varanda 2' }), 'Varanda 2')
+})
+
+test('alinhar e distribuir mesas', () => {
+  const els = [
+    { id: 'a', x: 10, y: 0, w: 80, h: 80 },
+    { id: 'b', x: 200, y: 40, w: 80, h: 80 },
+    { id: 'c', x: 500, y: 20, w: 160, h: 80 },
+  ]
+  assert.deepEqual(alinhar(els, 'topo').map((e) => e.y), [0, 0, 0])
+  assert.deepEqual(alinhar(els, 'esquerda').map((e) => e.x), [10, 10, 10])
+  const d = distribuir(els, 'h')
+  assert.equal(d[1].x - (d[0].x + d[0].w), d[2].x - (d[1].x + d[1].w), 'espaços iguais')
+})
+
+test('registro do salão anota só mesas criadas, apagadas e renomeadas', () => {
+  const antes = [{ id: 'amb', nome: 'Salão', elementos: [{ id: 'a', tipo: 'mesa', numero: '1', x: 0 }, { id: 'b', tipo: 'mesa', numero: '2' }] }]
+  const depois = [{ id: 'amb', nome: 'Salão', elementos: [{ id: 'a', tipo: 'mesa', numero: '1', x: 300 }, { id: 'c', tipo: 'mesa', numero: '3' }] }]
+  const texto = diferencaSalao(antes, depois)
+  assert.ok(texto.includes('mesas novas: Mesa 3'))
+  assert.ok(texto.includes('mesas apagadas: Mesa 2'))
+  assert.equal(diferencaSalao(antes, [{ ...antes[0], elementos: [{ ...antes[0].elementos[0], x: 999 }, antes[0].elementos[1]] }]), '', 'mover não registra')
+})
+
+test('modelos de salão: números únicos e tudo dentro do ambiente', () => {
+  for (const modelo of MODELOS) {
+    const ambientes = aplicarModelo(modelo.id, 'f1')
+    const numeros = mesasDoSalao(ambientes, 'f1').map((m) => m.numero.toLowerCase())
+    assert.equal(new Set(numeros).size, numeros.length, modelo.nome)
+    for (const a of ambientes) {
+      const c = caixaDosElementos(a.elementos)
+      assert.ok(c.x >= 0 && c.y >= 0 && c.x + c.w <= a.largura && c.y + c.h <= a.altura, `${modelo.nome} › ${a.nome}`)
+    }
+  }
+})
+
+test('relatório por mesa: tempo médio e gasto por pessoa', () => {
+  const vendas = [
+    { status: 'concluida', criadoEm: '2026-10-22T20:00:00Z', total: 8000, servico: 800, mesa: { id: 'm1', nome: 'Mesa 1', pessoas: 4, abertaEm: '2026-10-22T19:00:00Z' } },
+    { status: 'concluida', criadoEm: '2026-10-22T21:00:00Z', total: 4000, servico: 400, mesa: { id: 'm1', nome: 'Mesa 1', pessoas: 2, abertaEm: '2026-10-22T20:30:00Z' } },
+    { status: 'cancelada', criadoEm: '2026-10-22T21:00:00Z', total: 999, mesa: { id: 'm1', nome: 'Mesa 1', pessoas: 2 } },
+    { status: 'concluida', criadoEm: '2026-10-22T21:00:00Z', total: 1000 },
+  ]
+  const [m1] = porMesa(vendas)
+  assert.equal(m1.contas, 2)
+  assert.equal(m1.tempoMedio, 45)
+  assert.equal(m1.porPessoa, 2000)
+  assert.equal(m1.servico, 1200)
+  const r = resumoMesas(vendas)
+  assert.equal(r.pessoas, 6)
+  assert.equal(r.total, 12000)
+})
+
+test('permissões: administrador ganha as permissões novas; gerente monta o salão', () => {
+  const perfisAntigos = PERFIS_PADRAO.map((p) => (p.sistema ? { ...p, permissoes: p.permissoes.filter((x) => x !== 'admin.salao') } : p))
+  assert.equal(pode({ ativo: true, perfilId: 'perfil-admin' }, perfisAntigos, 'admin.salao'), true)
+  assert.equal(pode({ ativo: true, perfilId: 'perfil-gerente' }, PERFIS_PADRAO, 'admin.salao'), true)
+  assert.equal(pode({ ativo: true, perfilId: 'perfil-atendente' }, PERFIS_PADRAO, 'admin.salao'), false)
+})
+
+test('editor avisa mesa em cima de outra, mas não mesa encostada', () => {
+  const els = [
+    { id: 'a', tipo: 'mesa', x: 0, y: 0, w: 80, h: 80 },
+    { id: 'b', tipo: 'mesa', x: 60, y: 0, w: 80, h: 80 },
+    { id: 'c', tipo: 'mesa', x: 300, y: 0, w: 80, h: 80 },
+    { id: 'd', tipo: 'mesa', x: 380, y: 0, w: 80, h: 80 },
+    { id: 'e', tipo: 'balcao', x: 0, y: 0, w: 400, h: 60 },
+  ]
+  assert.deepEqual([...mesasSobrepostas(els)].sort(), ['a', 'b'])
+})

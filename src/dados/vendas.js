@@ -4,7 +4,12 @@
 //   itens: [{ uid, produtoId, nome, qtd, precoUnit, setor, modificadores: [...],
 //             obs, promocao: { id, nome, desconto por unidade }, desconto }]
 //   descontoPedido: { tipoId, nome, percentual | valor, autorizadoPor }
-//   tipo: 'balcao' | 'viagem' | 'encomenda', cliente: { nome, cpf }, itensCancelados: []
+//   tipo: 'balcao' | 'viagem' | 'encomenda' | 'mesa', cliente: { nome, cpf }, itensCancelados: [],
+//   mesa: { mesaId, contaId, nome, ambienteNome, pessoas, origem } quando o pedido vai para uma mesa
+//
+// Venda de mesa (tipo 'mesa') nasce quando a conta fecha (ver mesas.js): traz
+// mesa { id, nome, ambienteNome, pessoas, abertaEm, garcomNome, contaId } e a
+// taxa de serviço em "servico", que fica fora do total vendido.
 
 import { banco } from './banco.js'
 import { registrar } from './auditoria.js'
@@ -18,7 +23,11 @@ export const TIPOS_PEDIDO = [
   { id: 'encomenda', nome: 'Encomenda' },
 ]
 
-export const nomeTipoPedido = (id) => TIPOS_PEDIDO.find((t) => t.id === id)?.nome || id
+const NOMES_TIPO = { ...Object.fromEntries(TIPOS_PEDIDO.map((t) => [t.id, t.nome])), mesa: 'Mesa' }
+export const nomeTipoPedido = (id) => NOMES_TIPO[id] || id
+
+// Como o pedido aparece em listas: a mesa, o nome do cliente ou o tipo
+export const rotuloPedido = (v) => v.mesa?.nome || v.cliente?.nome || nomeTipoPedido(v.tipo)
 
 export const valorUnitario = (item) => item.precoUnit + (item.modificadores || []).reduce((t, m) => t + m.preco * (m.qtd || 1), 0)
 export const brutoItem = (item) => valorUnitario(item) * item.qtd
@@ -59,13 +68,14 @@ export async function proximaSenha(filialId) {
   return finais[k]
 }
 
-export async function finalizarVenda({ pedido, pagamentos, usuario, filialId, pdvId, caixaId }) {
+export async function finalizarVenda({ pedido, pagamentos, usuario, filialId, pdvId, caixaId, mesa = null, servico = 0 }) {
   const totais = totaisPedido(pedido)
-  const recebido = pagamentos.reduce((t, p) => t + p.valor, 0)
-  if (recebido < totais.total) throw new Error('O valor recebido é menor que o total do pedido.')
+  const recebido = pagamentos.reduce((t, p) => t + p.valor - (p.troco || 0), 0)
+  if (recebido < totais.total + servico) throw new Error('O valor recebido é menor que o total do pedido.')
 
   const numero = await proximaSenha(filialId)
-  const vaiParaCozinha = pedido.itens.some((i) => i.setor === 'cozinha')
+  // Os pedidos de mesa já foram para a cozinha rodada a rodada
+  const vaiParaCozinha = !mesa && pedido.itens.some((i) => i.setor === 'cozinha')
   const venda = banco.inserir('vendas', {
     numero,
     dia: hoje(),
@@ -74,7 +84,8 @@ export async function finalizarVenda({ pedido, pagamentos, usuario, filialId, pd
     caixaId,
     operadorId: usuario.id,
     operadorNome: usuario.nome,
-    tipo: pedido.tipo || 'balcao',
+    // "mesa" só vale com a mesa junto; um rascunho antigo sem mesa vira balcão
+    tipo: mesa ? 'mesa' : pedido.tipo && pedido.tipo !== 'mesa' ? pedido.tipo : 'balcao',
     cliente: pedido.cliente?.nome || pedido.cliente?.cpf ? { nome: pedido.cliente.nome || '', cpf: pedido.cliente.cpf || '' } : null,
     obs: pedido.obs || '',
     itens: pedido.itens.map(({ uid, ...i }) => ({ ...i, total: totalItem(i) })),
@@ -84,22 +95,25 @@ export async function finalizarVenda({ pedido, pagamentos, usuario, filialId, pd
     promocoes: totais.promocoes,
     descontos: totais.descontos,
     total: totais.total,
+    servico,
+    mesa,
     pagamentos,
     status: 'concluida',
     cozinha: vaiParaCozinha ? { status: 'novo', em: new Date().toISOString() } : null,
   })
 
   baixarVenda(venda, { usuario })
-  registrar('venda.concluida', `Pedido ${numero}, ${reais(totais.total)}`, { usuario, filialId })
+  registrar('venda.concluida', `${mesa ? `${mesa.nome}, pedido` : 'Pedido'} ${numero}, ${reais(totais.total)}${servico ? ` + ${reais(servico)} de serviço` : ''}`, { usuario, filialId })
   if (totais.descontos) registrar('venda.desconto', `Pedido ${numero}, desconto de ${reais(totais.descontos)}`, { usuario, filialId })
-  for (const c of pedido.itensCancelados || [])
-    registrar('venda.item-cancelado', `Pedido ${numero}: ${c.qtd}× ${c.nome} (${c.motivo})`, { usuario, filialId })
+  // Na mesa, cada cancelamento já foi registrado na hora em que aconteceu
+  if (!mesa)
+    for (const c of pedido.itensCancelados || []) registrar('venda.item-cancelado', `Pedido ${numero}: ${c.qtd}× ${c.nome} (${c.motivo})`, { usuario, filialId })
   return venda
 }
 
 // Pedido cancelado inteiro antes de cobrar: fica registrado como venda cancelada
 // (sem senha e sem baixa de estoque), para aparecer nos cancelamentos do painel.
-export function registrarPedidoCancelado({ pedido, motivo, usuario, autorizador, filialId, pdvId, caixaId }) {
+export function registrarPedidoCancelado({ pedido, motivo, usuario, autorizador, filialId, pdvId, caixaId, mesa = null }) {
   const totais = totaisPedido(pedido)
   const agora = new Date().toISOString()
   const venda = banco.inserir('vendas', {
@@ -110,7 +124,8 @@ export function registrarPedidoCancelado({ pedido, motivo, usuario, autorizador,
     caixaId,
     operadorId: usuario.id,
     operadorNome: usuario.nome,
-    tipo: pedido.tipo,
+    tipo: mesa ? 'mesa' : pedido.tipo,
+    mesa,
     cliente: null,
     obs: '',
     itens: pedido.itens.map(({ uid, ...i }) => ({ ...i, total: totalItem(i) })),
@@ -126,7 +141,7 @@ export function registrarPedidoCancelado({ pedido, motivo, usuario, autorizador,
     cozinha: null,
     encerramento: { motivo, em: agora, usuarioId: usuario.id, usuarioNome: usuario.nome, autorizadorNome: autorizador?.nome || null },
   })
-  registrar('venda.cancelada', `Pedido não cobrado, ${reais(totais.total)}: ${motivo}`, { usuario, filialId })
+  registrar('venda.cancelada', `${mesa ? `Conta da ${mesa.nome}` : 'Pedido'} não cobrado, ${reais(totais.total)}: ${motivo}`, { usuario, filialId })
   return venda
 }
 
