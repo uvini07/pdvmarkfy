@@ -62,9 +62,9 @@ function anguloLegivel(rot = 0) {
   return r > 90 && r <= 270 ? 180 : 0
 }
 
-function TextoElemento({ el }) {
+function TextoElemento({ el, giro = 0 }) {
   if (!el.rotulo) return null
-  const virar = anguloLegivel(el.rot)
+  const virar = anguloLegivel((el.rot || 0) + giro)
   const transform = virar ? `rotate(180 ${el.w / 2} ${el.h / 2})` : undefined
   if (el.tipo === 'area')
     return (
@@ -81,7 +81,7 @@ function TextoElemento({ el }) {
 }
 
 // Balcão, parede, porta, planta, área e texto
-export function Decoracao({ el, editor }) {
+export function Decoracao({ el, editor, giro = 0 }) {
   return (
     <g className={`salao-el salao-el--${el.tipo}`} transform={`translate(${el.x} ${el.y}) rotate(${el.rot || 0} ${el.w / 2} ${el.h / 2})`}>
       {el.tipo === 'texto' ? (
@@ -90,7 +90,7 @@ export function Decoracao({ el, editor }) {
         <Tampo el={el} className="salao-el__forma" />
       )}
       {el.tipo === 'planta' && <circle className="salao-el__miolo" cx={el.w / 2} cy={el.h / 2} r={el.w / 5} />}
-      <TextoElemento el={el} />
+      <TextoElemento el={el} giro={giro} />
     </g>
   )
 }
@@ -136,7 +136,8 @@ function Selo({ x, y, r, icone, classe, numero }) {
 
 // Uma mesa: tampo com as cadeiras (giram juntos) e o número sempre em pé.
 // No caixa, recebe a situação (cor, tempo, valor, avisos).
-export function MesaDesenho({ el, situacao, escala = 1, editor, escolhida, apagada, sobreposta, aoTocar, rotulo }) {
+// giro: quanto o mapa inteiro está girado; o número da mesa gira de volta e fica sempre em pé
+export function MesaDesenho({ el, situacao, escala = 1, editor, escolhida, apagada, sobreposta, aoTocar, rotulo, giro = 0 }) {
   const estado = situacao?.estado || (el.ativa === false ? 'inativa' : 'livre')
   const ocupadas = situacao?.conta?.pessoas || 0
   const cadeiras = cadeirasDaMesa(el)
@@ -195,7 +196,7 @@ export function MesaDesenho({ el, situacao, escala = 1, editor, escolhida, apaga
         const yLinha = y + (l.tamanho * 1.12) / 2
         y += l.tamanho * 1.12
         return (
-          <text key={i} className={l.classe} x={el.w / 2} y={yLinha} textAnchor="middle" dominantBaseline="central" fontSize={l.tamanho}>
+          <text key={i} className={l.classe} x={el.w / 2} y={yLinha} textAnchor="middle" dominantBaseline="central" fontSize={l.tamanho} transform={giro ? `rotate(${-giro} ${el.w / 2} ${el.h / 2})` : undefined}>
             {l.texto}
           </text>
         )
@@ -209,28 +210,62 @@ export function MesaDesenho({ el, situacao, escala = 1, editor, escolhida, apaga
 
 // Mede quantos pixels da tela vale uma unidade do desenho, para o texto das
 // mesas ficar legível em qualquer tamanho de tela
-function useEscala(ref, larguraDesenho) {
+function useEscala(ref, larguraDesenho, alturaDesenho) {
   const [escala, setEscala] = useState(1)
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
-    const medir = () => setEscala(Math.max(0.15, el.getBoundingClientRect().width / larguraDesenho) || 1)
+    // O desenho cabe pela largura ou pela altura (mapa girado fica alto)
+    const medir = () => {
+      const r = el.getBoundingClientRect()
+      setEscala(Math.max(0.15, Math.min(r.width / larguraDesenho, alturaDesenho ? r.height / alturaDesenho : Infinity)) || 1)
+    }
     medir()
     const ro = new ResizeObserver(medir)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [ref, larguraDesenho])
+  }, [ref, larguraDesenho, alturaDesenho])
   return escala
 }
 
 // Mapa de um ambiente para o caixa e o acompanhamento: enquadra o que foi
 // desenhado (sem as sobras vazias do ambiente) e deixa as mesas tocáveis.
+// Giro do mapa por ambiente, lembrado neste aparelho: cada um vê o salão do
+// jeito que está de pé na loja (da porta, do caixa…)
+const chaveGiro = (id) => `scpdv:giro-mapa:${id}`
+function lerGiro(id) {
+  try {
+    return Number(localStorage.getItem(chaveGiro(id))) || 0
+  } catch {
+    return 0
+  }
+}
+
+// Mapa de um ambiente para o caixa e o acompanhamento: enquadra o que foi
+// desenhado (sem as sobras vazias do ambiente) e deixa as mesas tocáveis.
+// O botão de girar vira o salão inteiro de 90 em 90 graus.
 export function MapaSalao({ ambiente, situacoes, aoTocar, escolhida, podeTocar, rotulo }) {
   const ref = useRef(null)
+  const [giros, setGiros] = useState({})
+  const giro = giros[ambiente.id] ?? lerGiro(ambiente.id)
+  const girar = () => {
+    const novo = (giro + 90) % 360
+    setGiros((g) => ({ ...g, [ambiente.id]: novo }))
+    try {
+      localStorage.setItem(chaveGiro(ambiente.id), String(novo))
+    } catch {
+      // sem armazenamento: só não lembra
+    }
+  }
   const caixa = caixaDosElementos(ambiente.elementos)
   const margem = 34
-  const vb = caixa ? { x: caixa.x - margem, y: caixa.y - margem, w: caixa.w + margem * 2, h: caixa.h + margem * 2 } : { x: 0, y: 0, w: ambiente.largura, h: ambiente.altura }
-  const escala = useEscala(ref, vb.w)
+  const base = caixa ? { x: caixa.x - margem, y: caixa.y - margem, w: caixa.w + margem * 2, h: caixa.h + margem * 2 } : { x: 0, y: 0, w: ambiente.largura, h: ambiente.altura }
+  // Girado de lado, largura e altura trocam; o centro continua o mesmo
+  const deLado = giro % 180 !== 0
+  const cx = base.x + base.w / 2
+  const cy = base.y + base.h / 2
+  const vb = deLado ? { x: cx - base.h / 2, y: cy - base.w / 2, w: base.h, h: base.w } : base
+  const escala = useEscala(ref, vb.w, vb.h)
   const decoracoes = ambiente.elementos.filter((e) => e.tipo !== 'mesa')
   const mesas = ambiente.elementos.filter((e) => e.tipo === 'mesa')
 
@@ -243,9 +278,13 @@ export function MapaSalao({ ambiente, situacoes, aoTocar, escolhida, podeTocar, 
 
   return (
     <div className="mapa-salao">
+      <button type="button" className="mapa-salao__girar" onClick={girar} aria-label={`Girar o mapa (agora ${giro}°)`} title="Girar o mapa">
+        <Icone nome="atualizar" tamanho={18} />
+      </button>
       <svg ref={ref} className="mapa-salao__svg" viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} style={{ aspectRatio: `${vb.w} / ${vb.h}` }} role="group" aria-label={rotulo || `Mapa de ${ambiente.nome}`}>
+        <g transform={giro ? `rotate(${giro} ${cx} ${cy})` : undefined}>
         {decoracoes.map((el) => (
-          <Decoracao key={el.id} el={el} />
+          <Decoracao key={el.id} el={el} giro={giro} />
         ))}
         {mesas.map((m) => {
           const mesa = { ...m, ambienteId: ambiente.id, ambienteNome: ambiente.nome, nome: nomeMesa(m) }
@@ -261,9 +300,11 @@ export function MapaSalao({ ambiente, situacoes, aoTocar, escolhida, podeTocar, 
               apagada={!permitida}
               aoTocar={aoTocar ? () => permitida && aoTocar(mesa) : undefined}
               rotulo={descreverSituacao(mesa, s)}
+              giro={giro}
             />
           )
         })}
+        </g>
       </svg>
     </div>
   )
@@ -327,15 +368,18 @@ export function ListaMesas({ grupos, aoTocar, escolhida, podeTocar }) {
   )
 }
 
+// filtro: 'todas' | 'livres' | 'ocupadas' | 'fechando' | 'atencao'
+export const passaFiltro = (s, filtro) =>
+  filtro === 'todas' ||
+  (filtro === 'livres' && (s?.estado || 'livre') === 'livre') ||
+  (filtro === 'ocupadas' && Boolean(s?.conta)) ||
+  (filtro === 'fechando' && s?.estado === 'fechando') ||
+  (filtro === 'atencao' && Boolean(s?.atencao || s?.prontos > 0))
+
 // Monta os grupos da lista: um por ambiente e, no fim, as contas cuja mesa
-// saiu do mapa. filtro: 'todas' | 'livres' | 'ocupadas' | 'fechando' | 'atencao'
+// saiu do mapa.
 export function gruposDaLista(salao, filtro = 'todas') {
-  const passa = (s) =>
-    filtro === 'todas' ||
-    (filtro === 'livres' && s?.estado === 'livre') ||
-    (filtro === 'ocupadas' && s?.conta) ||
-    (filtro === 'fechando' && s?.estado === 'fechando') ||
-    (filtro === 'atencao' && (s?.atencao || s?.prontos > 0))
+  const passa = (s) => passaFiltro(s, filtro)
   const grupos = salao.ambientes.map((a) => ({
     id: a.id,
     nome: a.nome,
@@ -366,5 +410,168 @@ export function LegendaSalao({ salao }) {
         </li>
       ))}
     </ul>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Análise: todas as mesas em cartões, lado a lado, para salões grandes (100,
+// 200 mesas). Cabe tudo numa tela, a cor e o texto dizem a situação, e os
+// contadores no topo também filtram.
+
+export const FILTROS_MESAS = [
+  { valor: 'todas', rotulo: 'Todas', tom: 'todas' },
+  { valor: 'livres', rotulo: 'Livres', tom: 'livre' },
+  { valor: 'ocupadas', rotulo: 'Ocupadas', tom: 'ocupada' },
+  { valor: 'fechando', rotulo: 'Pediram a conta', tom: 'fechando' },
+  { valor: 'atencao', rotulo: 'Pedem atenção', tom: 'atencao' },
+]
+
+const ORDENS_PAINEL = [
+  { valor: 'numero', rotulo: 'Número' },
+  { valor: 'tempo', rotulo: 'Mais tempo' },
+  { valor: 'valor', rotulo: 'Maior valor' },
+]
+
+const chaveNum = (m) => String(m.numero ?? '').toLowerCase()
+
+function CartaoAnalise({ mesa, situacao: s, escolhida, permitida, aoTocar }) {
+  const estado = s?.estado || (mesa.ativa === false ? 'inativa' : 'livre')
+  return (
+    <button
+      type="button"
+      className={`analise-mesa analise-mesa--${estado} ${s?.atencao ? 'analise-mesa--atencao' : ''} ${escolhida ? 'analise-mesa--escolhida' : ''}`}
+      onClick={() => aoTocar?.(mesa)}
+      disabled={!permitida}
+      aria-label={descreverSituacao(mesa, s)}
+      aria-pressed={escolhida || undefined}
+    >
+      <span className="analise-mesa__numero">{mesa.numero}</span>
+      {s?.conta ? (
+        <>
+          <span className="analise-mesa__valor numero">{valor(s.totais.falta)}</span>
+          <span className="analise-mesa__tempo numero">
+            {decorrido(s.conta.abertaEm)}
+            {s.conta.pessoas ? ` · ${s.conta.pessoas}p` : ''}
+          </span>
+        </>
+      ) : (
+        <span className="analise-mesa__tempo">{estado === 'inativa' ? 'fora de uso' : mesa.foraDoMapa ? 'fora do mapa' : mesa.lugares ? `${mesa.lugares} lug.` : ''}</span>
+      )}
+      {(s?.prontos > 0 || s?.estado === 'fechando' || s?.atencao) && (
+        <span className="analise-mesa__selos" aria-hidden="true">
+          {s.prontos > 0 && (
+            <span className="analise-mesa__selo analise-mesa__selo--pronto" title="Pronto para servir">
+              <Icone nome="check" tamanho={11} traco={3} />
+              {s.prontos > 1 ? s.prontos : ''}
+            </span>
+          )}
+          {s.estado === 'fechando' && (
+            <span className="analise-mesa__selo analise-mesa__selo--conta" title="Pediu a conta">
+              <Icone nome="recibo" tamanho={11} traco={2.6} />
+            </span>
+          )}
+          {s.atencao && (
+            <span className="analise-mesa__selo analise-mesa__selo--atencao" title="Sem pedido há tempo">
+              <Icone nome="relogio" tamanho={11} traco={2.6} />
+            </span>
+          )}
+        </span>
+      )}
+    </button>
+  )
+}
+
+// busca: filtra pelo começo do número enquanto digita ("4" mostra 4, 40–49…)
+export function AnaliseMesas({ salao, aoTocar, escolhida, podeTocar, busca = '', travarFiltro }) {
+  const [filtro, setFiltro] = useState('todas')
+  const [ordem, setOrdem] = useState('numero')
+  const [ambienteId, setAmbienteId] = useState('todos')
+  const filtroAtivo = travarFiltro ? 'todas' : filtro
+
+  const todas = useMemo(
+    () => [
+      ...salao.mesas.map((mesa) => ({ mesa, situacao: salao.situacoes.get(mesa.id) })),
+      ...salao.foraDoMapa.map((x) => ({ ...x, mesa: { ...x.mesa, ambienteId: 'fora', ambienteNome: 'Fora do mapa' } })),
+    ],
+    [salao],
+  )
+  const ambientes = [...salao.ambientes.map((a) => ({ id: a.id, nome: a.nome })), ...(salao.foraDoMapa.length ? [{ id: 'fora', nome: 'Fora do mapa' }] : [])]
+  const doAmbiente = todas.filter((x) => ambienteId === 'todos' || x.mesa.ambienteId === ambienteId)
+  const contagem = Object.fromEntries(FILTROS_MESAS.map((f) => [f.valor, doAmbiente.filter((x) => passaFiltro(x.situacao, f.valor)).length]))
+
+  const termo = busca.trim().toLowerCase()
+  const visiveis = doAmbiente
+    .filter((x) => passaFiltro(x.situacao, filtroAtivo))
+    .filter((x) => !termo || chaveNum(x.mesa).startsWith(termo) || x.mesa.nome?.toLowerCase().includes(termo))
+    .sort((a, b) => {
+      if (ordem === 'tempo') return (b.situacao?.minutos ?? -1) - (a.situacao?.minutos ?? -1) || compararMesas(a.mesa, b.mesa)
+      if (ordem === 'valor') return (b.situacao?.totais?.falta ?? -1) - (a.situacao?.totais?.falta ?? -1) || compararMesas(a.mesa, b.mesa)
+      return compararMesas(a.mesa, b.mesa)
+    })
+
+  // Por número e com todos os ambientes, separa por ambiente; nas outras
+  // ordens o que importa é o ranking, então fica tudo junto
+  const separar = ordem === 'numero' && ambienteId === 'todos' && ambientes.length > 1
+  const grupos = separar ? ambientes.map((a) => ({ ...a, itens: visiveis.filter((x) => x.mesa.ambienteId === a.id) })).filter((g) => g.itens.length) : [{ id: 'tudo', itens: visiveis }]
+
+  return (
+    <div className="analise">
+      {!travarFiltro && (
+        <div className="analise__contadores" role="radiogroup" aria-label="Filtrar mesas">
+          {FILTROS_MESAS.map((f) => (
+            <button key={f.valor} type="button" role="radio" aria-checked={filtro === f.valor} className={`analise__contador analise__contador--${f.tom}`} onClick={() => setFiltro(filtro === f.valor ? 'todas' : f.valor)}>
+              <strong className="numero">{contagem[f.valor]}</strong>
+              <span>{f.rotulo}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="analise__barra">
+        {ambientes.length > 1 && (
+          <label className="analise__escolha">
+            <span>Ambiente</span>
+            <select value={ambienteId} onChange={(e) => setAmbienteId(e.target.value)}>
+              <option value="todos">Todos</option>
+              {ambientes.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label className="analise__escolha">
+          <span>Ordenar</span>
+          <select value={ordem} onChange={(e) => setOrdem(e.target.value)}>
+            {ORDENS_PAINEL.map((o) => (
+              <option key={o.valor} value={o.valor}>
+                {o.rotulo}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="analise__total mudo" role="status">
+          {visiveis.length === doAmbiente.length ? `${visiveis.length} mesa(s)` : `${visiveis.length} de ${doAmbiente.length}`}
+        </span>
+      </div>
+      {visiveis.length ? (
+        grupos.map((g) => (
+          <section key={g.id} className="analise__grupo" aria-label={g.nome || 'Mesas'}>
+            {g.nome && (
+              <h3 className="analise__titulo">
+                {g.nome} <small className="numero">{g.itens.length}</small>
+              </h3>
+            )}
+            <div className="analise__grade">
+              {g.itens.map(({ mesa, situacao }) => (
+                <CartaoAnalise key={mesa.id} mesa={mesa} situacao={situacao} escolhida={escolhida === mesa.id} permitida={!podeTocar || podeTocar(mesa, situacao)} aoTocar={aoTocar} />
+              ))}
+            </div>
+          </section>
+        ))
+      ) : (
+        <p className="analise__vazio mudo">{termo ? `Nenhuma mesa começa com “${busca.trim()}”.` : 'Nenhuma mesa neste filtro agora.'}</p>
+      )}
+    </div>
   )
 }

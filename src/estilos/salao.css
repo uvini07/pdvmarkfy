@@ -757,6 +757,7 @@
 /* ---------- Mapa (caixa e acompanhamento) ---------- */
 
 .mapa-salao {
+  position: relative;
   padding: 8px;
   border-radius: var(--raio-g);
   background: var(--salao-chao);
@@ -940,6 +941,285 @@
 .cartao-mesa--escolhida {
   outline: 3px solid var(--anel);
   outline-offset: 1px;
+}
+
+/* ---------- Análise: todas as mesas em cartões ---------- */
+
+.analise {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.analise__contadores {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.analise__contador {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--raio-m);
+  background: var(--superficie-2);
+  box-shadow: inset 0 3px 0 var(--marca-contador, var(--texto-3));
+  text-align: left;
+  transition: background-color var(--duracao) ease;
+}
+.analise__contador strong {
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+.analise__contador span {
+  font-size: 13px;
+  color: var(--texto-2);
+}
+.analise__contador:hover {
+  background: var(--superficie-3);
+}
+.analise__contador[aria-checked='true'] {
+  background: var(--superficie-3);
+  outline: 2px solid var(--marca-contador, var(--anel));
+  outline-offset: -2px;
+}
+.analise__contador--livre {
+  --marca-contador: var(--salao-mesa-borda);
+}
+.analise__contador--ocupada {
+  --marca-contador: var(--salao-ocupada);
+}
+.analise__contador--fechando {
+  --marca-contador: var(--salao-fechando);
+}
+.analise__contador--atencao {
+  --marca-contador: var(--salao-atencao);
+}
+.analise__barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.analise__escolha {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--texto-2);
+}
+.analise__escolha select {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-s, 8px);
+  background: var(--superficie-2);
+  color: var(--texto);
+  font: inherit;
+  font-weight: 700;
+}
+.analise__total {
+  margin-left: auto;
+  font-size: 13px;
+}
+.analise__titulo {
+  margin: 4px 0 8px;
+  font-size: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-2);
+}
+.analise__titulo small {
+  margin-left: 4px;
+  font-weight: 700;
+  color: var(--texto-3);
+}
+.analise__grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 6px;
+}
+.analise__vazio {
+  padding: 24px 0;
+  text-align: center;
+}
+
+.analise-mesa {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-height: 64px;
+  padding: 6px 4px 5px;
+  border-radius: var(--raio-m);
+  background: var(--superficie-2);
+  box-shadow: inset 0 0 0 1.5px var(--borda);
+  color: var(--texto);
+  transition: transform var(--duracao) ease, background-color var(--duracao) ease;
+}
+.analise-mesa:hover:not(:disabled) {
+  background: var(--superficie-3);
+}
+.analise-mesa:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.analise-mesa:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.analise-mesa__numero {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+.analise-mesa__valor {
+  font-size: 13.5px;
+  font-weight: 800;
+}
+.analise-mesa__tempo {
+  font-size: 11.5px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+.analise-mesa__selos {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+}
+.analise-mesa__selo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 3px;
+  border-radius: var(--raio-pill);
+  font-size: 11px;
+  font-weight: 900;
+  box-shadow: 0 0 0 1.5px var(--superficie);
+}
+.analise-mesa__selo--pronto {
+  background: var(--salao-pronto);
+  color: var(--salao-pronto-texto);
+}
+.analise-mesa__selo--conta {
+  background: var(--branco);
+  color: var(--preto);
+}
+.analise-mesa__selo--atencao {
+  background: var(--salao-atencao);
+  color: var(--preto);
+}
+.analise-mesa--ocupada {
+  background: var(--salao-ocupada);
+  color: var(--salao-ocupada-texto);
+  box-shadow: none;
+}
+.analise-mesa--ocupada:hover:not(:disabled) {
+  background: var(--salao-ocupada);
+  filter: brightness(1.06);
+}
+.analise-mesa--fechando {
+  background: var(--salao-fechando);
+  color: var(--salao-fechando-texto);
+  box-shadow: none;
+}
+.analise-mesa--fechando:hover:not(:disabled) {
+  background: var(--salao-fechando);
+  filter: brightness(1.08);
+}
+.analise-mesa--atencao {
+  box-shadow: inset 0 0 0 3px var(--salao-atencao);
+}
+.analise-mesa--inativa {
+  opacity: 0.4;
+  background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--borda) 6px 7px);
+}
+.analise-mesa--escolhida {
+  outline: 3px solid var(--anel);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .analise__contadores {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .analise__contador {
+    flex: 0 0 auto;
+    min-width: 96px;
+  }
+  .analise__grade {
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  }
+  .analise-mesa {
+    min-height: 66px;
+  }
+  .analise-mesa__numero {
+    font-size: 19px;
+  }
+}
+
+/* ---------- Salões grandes no editor ---------- */
+
+.salao-ferramentas__busca .entrada,
+.salao-ferramentas__busca input {
+  width: 130px;
+}
+.varias-mesas {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.varias-mesas__previa {
+  position: sticky;
+  top: 0;
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--raio-m);
+  background: var(--superficie-2);
+  text-align: center;
+}
+.varias-mesas__previa figcaption {
+  margin-top: 6px;
+  font-size: 12.5px;
+}
+.salao-previa-numeros {
+  display: block;
+  width: 100%;
+  max-height: 340px;
+}
+.salao-previa-numeros rect,
+.salao-previa-numeros ellipse {
+  fill: var(--salao-mesa);
+  stroke: var(--salao-mesa-borda);
+  stroke-width: 3;
+}
+.salao-previa-numeros text {
+  fill: var(--salao-texto);
+  font-weight: 900;
+}
+@media (max-width: 760px) {
+  .varias-mesas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .varias-mesas__previa {
+    position: static;
+  }
 }
 
 /* ---------- Telas menores ---------- */
@@ -1643,4 +1923,30 @@
 }
 .abertura__mesas p {
   font-size: 13.5px;
+}
+
+.mapa-salao__girar {
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--raio-m);
+  background: var(--superficie-2);
+  box-shadow: inset 0 0 0 1px var(--borda);
+  color: var(--texto-2);
+}
+.mapa-salao__girar:hover {
+  color: var(--texto);
+  background: var(--superficie-3);
+}
+@media (max-width: 599.98px) {
+  .mapa-salao__girar {
+    position: sticky;
+    left: 0;
+    float: right;
+  }
 }

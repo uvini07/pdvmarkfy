@@ -15,7 +15,7 @@ import { Modal } from '../../componentes/Modal.jsx'
 import { Segmentos, Vazio, useRelogio } from '../../componentes/ui.jsx'
 import { Icone } from '../../componentes/Icone.jsx'
 import { ContaMesa } from '../../componentes/ContaMesa.jsx'
-import { LegendaSalao, ListaMesas, MapaSalao, gruposDaLista, useSalao } from '../../componentes/Salao.jsx'
+import { AnaliseMesas, LegendaSalao, ListaMesas, MapaSalao, gruposDaLista, useSalao } from '../../componentes/Salao.jsx'
 import { decorrido, ha, hoje, hora, minutosDesde } from '../../lib/datas.js'
 import { reais } from '../../lib/dinheiro.js'
 
@@ -35,7 +35,7 @@ export function MesasAgora() {
   const formas = useColecao('formasPagamento')
   const agora = useRelogio(15_000)
   const salao = useSalao(filial.id, agora)
-  const [vista, setVista] = useState('mapa')
+  const [vista, setVista] = useState(() => (salao.mesas.length > 40 ? 'analise' : 'mapa'))
   const [ambienteId, setAmbienteId] = useState(null)
   const [aberta, setAberta] = useState(null)
   const ambiente = salao.ambientes.find((a) => a.id === ambienteId) || salao.ambientes[0]
@@ -117,14 +117,21 @@ export function MesasAgora() {
               aoMudar={setVista}
               opcoes={[
                 { valor: 'mapa', rotulo: 'Mapa', icone: 'mesa' },
+                { valor: 'analise', rotulo: 'Análise', icone: 'grade' },
                 { valor: 'lista', rotulo: 'Lista', icone: 'lista' },
               ]}
             />
           }
         >
           {vista === 'mapa' && salao.ambientes.length > 1 && <Segmentos rotulo="Ambiente" tamanho="p" valor={ambiente?.id} aoMudar={setAmbienteId} opcoes={salao.ambientes.map((a) => ({ valor: a.id, rotulo: a.nome }))} />}
-          {vista === 'mapa' && ambiente ? <MapaSalao ambiente={ambiente} situacoes={salao.situacoes} aoTocar={abrir} rotulo={`Mesas de ${ambiente.nome}`} /> : <ListaMesas grupos={gruposDaLista(salao)} aoTocar={abrir} />}
-          <LegendaSalao salao={salao} />
+          {vista === 'mapa' && ambiente ? (
+            <MapaSalao ambiente={ambiente} situacoes={salao.situacoes} aoTocar={abrir} rotulo={`Mesas de ${ambiente.nome}`} />
+          ) : vista === 'analise' ? (
+            <AnaliseMesas salao={salao} aoTocar={abrir} />
+          ) : (
+            <ListaMesas grupos={gruposDaLista(salao)} aoTocar={abrir} />
+          )}
+          {vista !== 'analise' && <LegendaSalao salao={salao} />}
           <p className="mudo mesas-agora__nota">Toque numa mesa ocupada para ver a conta. Lançar, trocar de mesa e fechar a conta é no caixa.</p>
         </Cartao>
 

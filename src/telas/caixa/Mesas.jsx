@@ -29,16 +29,18 @@ import { Icone } from '../../componentes/Icone.jsx'
 import { avisar, confirmar, escolher, pedirAutorizacao } from '../../componentes/dialogos.jsx'
 import { imprimir } from '../../componentes/Impressao.jsx'
 import { ContaMesa } from '../../componentes/ContaMesa.jsx'
-import { LegendaSalao, ListaMesas, MapaSalao, gruposDaLista, useSalao } from '../../componentes/Salao.jsx'
+import { AnaliseMesas, LegendaSalao, ListaMesas, MapaSalao, gruposDaLista, useSalao } from '../../componentes/Salao.jsx'
 import { ha } from '../../lib/datas.js'
 import { reais } from '../../lib/dinheiro.js'
 
 const CHAVE_VISTA = 'scpdv:mesas-vista'
-function lerVista() {
+// Sem preferência guardada: celular vê a lista; salão grande, a análise
+function lerVista(totalMesas) {
+  const padrao = () => (window.matchMedia('(max-width: 599.98px)').matches ? 'lista' : totalMesas > 40 ? 'analise' : 'mapa')
   try {
-    return localStorage.getItem(CHAVE_VISTA) || (window.matchMedia('(max-width: 599.98px)').matches ? 'lista' : 'mapa')
+    return localStorage.getItem(CHAVE_VISTA) || padrao()
   } catch {
-    return 'mapa'
+    return padrao()
   }
 }
 
@@ -74,7 +76,7 @@ export function Mesas({ modo = 'gerir', inicial, caixa, mesaDoPedido, aoEscolher
   const agora = useRelogio(15_000)
   const salao = useSalao(filial.id, agora)
   const [mesaId, setMesaId] = useState(inicial || null)
-  const [vista, setVista] = useState(lerVista)
+  const [vista, setVista] = useState(() => lerVista(salao.mesas.length))
   const inicialAmb = salao.mesas.find((m) => m.id === (inicial || mesaDoPedido))?.ambienteId
   const [ambienteId, setAmbienteId] = useState(inicialAmb || salao.ambientes[0]?.id)
   const [filtro, setFiltro] = useState('todas')
@@ -109,7 +111,10 @@ export function Mesas({ modo = 'gerir', inicial, caixa, mesaDoPedido, aoEscolher
     e.preventDefault()
     const t = busca.trim().toLowerCase()
     if (!t) return
-    const m = salao.mesas.find((x) => String(x.numero).toLowerCase() === t || x.nome.toLowerCase() === t)
+    const exata = salao.mesas.find((x) => String(x.numero).toLowerCase() === t || x.nome.toLowerCase() === t)
+    // Na análise, se só sobrou uma mesa com esse começo, Enter abre ela
+    const comeco = salao.mesas.filter((x) => String(x.numero).toLowerCase().startsWith(t))
+    const m = exata || (vista === 'analise' && comeco.length === 1 ? comeco[0] : null)
     if (!m) return avisar(`Não achei a mesa “${busca.trim()}”.`, 'erro')
     setBusca('')
     tocarMesa(m)
@@ -327,7 +332,7 @@ export function Mesas({ modo = 'gerir', inicial, caixa, mesaDoPedido, aoEscolher
               {vista === 'lista' && <Segmentos rotulo="Filtro" tamanho="p" valor={filtro} aoMudar={setFiltro} opcoes={FILTROS} />}
               <div className="mesas-caixa__ferramentas">
                 <form onSubmit={abrirPorNumero} className="mesas-caixa__busca">
-                  <Entrada icone="busca" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Mesa nº" aria-label="Abrir mesa pelo número" inputMode="text" />
+                  <Entrada icone="busca" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Mesa nº" aria-label={vista === 'analise' ? 'Filtrar e abrir mesa pelo número' : 'Abrir mesa pelo número'} inputMode="text" />
                 </form>
                 <Segmentos
                   rotulo="Ver como"
@@ -336,6 +341,7 @@ export function Mesas({ modo = 'gerir', inicial, caixa, mesaDoPedido, aoEscolher
                   aoMudar={trocarVista}
                   opcoes={[
                     { valor: 'mapa', rotulo: 'Mapa', icone: 'mesa' },
+                    { valor: 'analise', rotulo: 'Análise', icone: 'grade' },
                     { valor: 'lista', rotulo: 'Lista', icone: 'lista' },
                   ]}
                 />
@@ -354,6 +360,8 @@ export function Mesas({ modo = 'gerir', inicial, caixa, mesaDoPedido, aoEscolher
 
             {vista === 'mapa' && ambiente ? (
               <MapaSalao ambiente={ambiente} situacoes={salao.situacoes} aoTocar={tocarMesa} escolhida={mesaId || mesaDoPedido} podeTocar={podeTocar} rotulo={`Mesas de ${ambiente.nome}`} />
+            ) : vista === 'analise' ? (
+              <AnaliseMesas salao={salao} aoTocar={tocarMesa} escolhida={mesaId || mesaDoPedido} podeTocar={podeTocar} busca={busca} />
             ) : (
               <ListaMesas grupos={gruposDaLista(salao, acao ? 'todas' : filtro)} aoTocar={tocarMesa} escolhida={mesaId || mesaDoPedido} podeTocar={podeTocar} />
             )}
@@ -362,7 +370,7 @@ export function Mesas({ modo = 'gerir', inicial, caixa, mesaDoPedido, aoEscolher
                 <Icone nome="alerta" tamanho={16} /> {salao.foraDoMapa.length} conta(s) em mesa que saiu do mapa: veja na lista.
               </p>
             )}
-            <LegendaSalao salao={salao} />
+            {vista !== 'analise' && <LegendaSalao salao={salao} />}
           </section>
 
           {mesa && (

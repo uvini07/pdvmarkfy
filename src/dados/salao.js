@@ -258,6 +258,78 @@ export function distribuir(elementos, eixo) {
   return elementos.map((e) => novos.get(e.id))
 }
 
+// ---------------------------------------------------------------------------
+// Salões grandes: numerar e renumerar muitas mesas de uma vez
+
+// "101", 3 → 101, 102, 103; com prefixo "V" → V101… Começo não numérico
+// ("B") vira prefixo com contagem a partir de 1.
+export function sequenciaDeNumeros({ inicio = '1', prefixo = '', quantidade }) {
+  const ini = String(inicio ?? '').trim()
+  const casado = ini.match(/^(.*?)(\d+)$/)
+  const pre = (prefixo || '') + (casado ? casado[1] : ini)
+  const n0 = casado ? Number(casado[2]) : 1
+  return Array.from({ length: quantidade }, (_, i) => textoLimpo(`${pre}${n0 + i}`, 12))
+}
+
+// Números da lista que já estão em outras mesas da filial (fora as ignoradas)
+export function numerosOcupados(ambientes, numeros, ignorar = []) {
+  const fora = new Set(ignorar)
+  const usados = new Set(ambientes.flatMap((a) => a.elementos.filter((e) => ehMesa(e) && !fora.has(e.id)).map((m) => chaveNumero(m.numero))))
+  const vistos = new Set()
+  const repetidos = []
+  for (const n of numeros) {
+    const k = chaveNumero(n)
+    if (usados.has(k) || vistos.has(k)) repetidos.push(n)
+    vistos.add(k)
+  }
+  return repetidos
+}
+
+// Ordem em que o garçom "lê" o salão: por fileiras (esquerda → direita),
+// por colunas (cima → baixo) ou em zigue-zague (fileira sim, fileira não ao
+// contrário, como quem anda entre as mesas). Mesas quase na mesma altura
+// contam como a mesma fileira.
+export function ordemDeLeitura(elementos, como = 'fileiras') {
+  const porColuna = como === 'colunas'
+  const eixo = porColuna ? 'x' : 'y'
+  const outro = porColuna ? 'y' : 'x'
+  const tam = porColuna ? 'w' : 'h'
+  const centro = (e, k, t) => e[k] + e[t] / 2
+  const ordem = [...elementos].sort((a, b) => centro(a, eixo, tam) - centro(b, eixo, tam))
+  const faixas = []
+  for (const e of ordem) {
+    const ultima = faixas[faixas.length - 1]
+    const c = centro(e, eixo, tam)
+    if (ultima && c - ultima.inicio <= Math.max(GRADE, Math.min(ultima.tam, e[tam]) * 0.6)) ultima.itens.push(e)
+    else faixas.push({ inicio: c, tam: e[tam], itens: [e] })
+  }
+  return faixas.flatMap((f, i) => {
+    const t = porColuna ? 'h' : 'w'
+    const itens = f.itens.sort((a, b) => centro(a, outro, t) - centro(b, outro, t))
+    return como === 'zigue' && i % 2 ? itens.reverse() : itens
+  })
+}
+
+// Novos números para as mesas, na ordem de leitura. Devolve o mapa id → número
+export function renumerar(mesas, { inicio, prefixo, como }) {
+  const ordem = ordemDeLeitura(mesas, como)
+  const numeros = sequenciaDeNumeros({ inicio, prefixo, quantidade: ordem.length })
+  return new Map(ordem.map((m, i) => [m.id, numeros[i]]))
+}
+
+// Achar mesas pelo número ou nome, para salões com muitas mesas
+export function acharMesa(mesas, termo) {
+  const t = chaveNumero(termo)
+  if (!t) return null
+  return mesas.find((m) => chaveNumero(m.numero) === t) || mesas.find((m) => chaveNumero(nomeMesa(m)) === t) || null
+}
+
+export const ESPACOS = {
+  junto: { nome: 'Juntas', valor: GRADE },
+  normal: { nome: 'Normal', valor: GRADE * 2 },
+  folgado: { nome: 'Folgadas', valor: GRADE * 4 },
+}
+
 // Várias mesas iguais de uma vez, em fileiras, a partir de um canto
 export function gradeDeMesas({ quantidade, forma, lugares, colunas, numeros, inicio, espaco = GRADE * 2 }) {
   const f = FORMAS_MESA[forma]

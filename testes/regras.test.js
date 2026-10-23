@@ -179,7 +179,7 @@ test('cardápio inicial: códigos únicos e todo sabor obrigatório tem opção'
 // Salão e mesas
 
 import { totaisConta, valorDaParte, itensAgrupados, situacaoMesa, resumoSalao, contasComPagamentoNoCaixa } from '../src/dados/mesas.js'
-import { cadeirasDaMesa, proximoNumero, problemaNoNumero, nomeMesa, alinhar, distribuir, diferencaSalao, mesasDoSalao, aplicarModelo, MODELOS, caixaDosElementos, mesasSobrepostas } from '../src/dados/salao.js'
+import { cadeirasDaMesa, proximoNumero, problemaNoNumero, nomeMesa, alinhar, distribuir, diferencaSalao, mesasDoSalao, aplicarModelo, MODELOS, caixaDosElementos, mesasSobrepostas, sequenciaDeNumeros, numerosOcupados, ordemDeLeitura, renumerar, acharMesa } from '../src/dados/salao.js'
 import { porMesa, resumoMesas } from '../src/dados/relatorios.js'
 
 const coxinha = { id: 'i1', produtoId: 'p-g-frango', nome: 'Frango G', qtd: 2, precoUnit: 1490, modificadores: [], promocao: null, desconto: null, total: 2980 }
@@ -373,4 +373,37 @@ test('editor avisa mesa em cima de outra, mas não mesa encostada', () => {
     { id: 'e', tipo: 'balcao', x: 0, y: 0, w: 400, h: 60 },
   ]
   assert.deepEqual([...mesasSobrepostas(els)].sort(), ['a', 'b'])
+})
+
+test('salão grande: sequência de números com começo e prefixo', () => {
+  assert.deepEqual(sequenciaDeNumeros({ inicio: '101', quantidade: 3 }), ['101', '102', '103'])
+  assert.deepEqual(sequenciaDeNumeros({ inicio: '1', prefixo: 'V', quantidade: 2 }), ['V1', 'V2'])
+  assert.deepEqual(sequenciaDeNumeros({ inicio: 'B', quantidade: 2 }), ['B1', 'B2'])
+})
+
+test('salão grande: números repetidos são apontados, ignorando as próprias mesas', () => {
+  const ambs = [{ elementos: [{ id: 'a', tipo: 'mesa', numero: '1' }, { id: 'b', tipo: 'mesa', numero: '2' }] }]
+  assert.deepEqual(numerosOcupados(ambs, ['2', '3']), ['2'])
+  assert.deepEqual(numerosOcupados(ambs, ['2', '3'], ['b']), [])
+  assert.deepEqual(numerosOcupados(ambs, ['5', '5']), ['5'])
+})
+
+test('salão grande: ordem de leitura por fileiras, zigue-zague e colunas', () => {
+  const m = (id, x, y) => ({ id, tipo: 'mesa', x, y, w: 80, h: 80 })
+  // duas fileiras, a segunda um pouco torta
+  const els = [m('d', 0, 125), m('a', 0, 0), m('c', 240, 5), m('b', 120, 0), m('f', 240, 120), m('e', 120, 130)]
+  assert.deepEqual(ordemDeLeitura(els).map((e) => e.id), ['a', 'b', 'c', 'd', 'e', 'f'])
+  assert.deepEqual(ordemDeLeitura(els, 'zigue').map((e) => e.id), ['a', 'b', 'c', 'f', 'e', 'd'])
+  assert.deepEqual(ordemDeLeitura(els, 'colunas').map((e) => e.id), ['a', 'd', 'b', 'e', 'c', 'f'])
+  const nums = renumerar(els, { inicio: '10', prefixo: '', como: 'fileiras' })
+  assert.equal(nums.get('a'), '10')
+  assert.equal(nums.get('f'), '15')
+})
+
+test('salão grande: achar mesa pelo número ou pelo nome', () => {
+  const mesas = [{ id: 'a', numero: '12' }, { id: 'b', numero: 'VIP' }]
+  assert.equal(acharMesa(mesas, ' 12 ').id, 'a')
+  assert.equal(acharMesa(mesas, 'mesa 12').id, 'a')
+  assert.equal(acharMesa(mesas, 'vip').id, 'b')
+  assert.equal(acharMesa(mesas, '99'), null)
 })

@@ -13,12 +13,14 @@ import { registrar } from '../../dados/auditoria.js'
 import { contaAtiva } from '../../dados/mesas.js'
 import {
   ELEMENTOS,
+  ESPACOS,
   FORMAS_MESA,
   GRADE,
   LUGARES_MAX,
   MODELOS,
   TAMANHO_MAX,
   TAMANHO_MIN,
+  acharMesa,
   alinhar,
   ambientesDaFilial,
   aplicarModelo,
@@ -37,9 +39,13 @@ import {
   novaMesa,
   novoAmbiente,
   novoElemento,
+  numerosOcupados,
+  ordemDeLeitura,
   problemaNoNumero,
   proximoNumero,
+  renumerar,
   sempreRedondo,
+  sequenciaDeNumeros,
 } from '../../dados/salao.js'
 import { useSessao } from '../../estado/sessao.js'
 import { Pagina, Cartao } from '../../componentes/Pagina.jsx'
@@ -340,10 +346,15 @@ function EditorSalao({ filial }) {
     setZoom(limitar(Math.floor(z * 20) / 20, 0.25, 2))
   }
 
-  // Abrir um ambiente mostra ele inteiro
+  // Abrir um ambiente mostra ele inteiro (ou vai direto à mesa que foi buscada)
+  const focar = useRef(null)
+  const mostrarElemento = (id) =>
+    requestAnimationFrame(() => svgRef.current?.querySelector(`[data-id="${id}"]`)?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' }))
   useLayoutEffect(() => {
     enquadrar()
-    setSelecao([])
+    setSelecao(focar.current ? [focar.current] : [])
+    if (focar.current) mostrarElemento(focar.current)
+    focar.current = null
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ambiente?.id])
 
@@ -527,6 +538,35 @@ function EditorSalao({ filial }) {
   }
 
   const duplicar = () => colar(selecionados)
+
+  // ---------- Salões grandes: achar e renumerar ----------
+
+  const [busca, setBusca] = useState('')
+  const acharNoSalao = (e) => {
+    e.preventDefault()
+    const m = acharMesa(mesasDoSalaoTodo(), busca)
+    if (!m) return avisar(`Não achei a mesa “${busca.trim()}” em nenhum ambiente.`, 'erro')
+    setBusca('')
+    if (m.ambienteId !== ambiente.id) {
+      focar.current = m.id
+      setAmbienteId(m.ambienteId)
+    } else {
+      setSelecao([m.id])
+      mostrarElemento(m.id)
+    }
+  }
+  const mesasDoSalaoTodo = () => estado.current.flatMap((a) => a.elementos.filter(ehMesa).map((m) => ({ ...m, ambienteId: a.id })))
+
+  const aplicarNumeros = ({ inicio, prefixo, como }) => {
+    const mesas = selecionados.filter(ehMesa)
+    const novos = renumerar(mesas, { inicio, prefixo, como })
+    const repetidos = numerosOcupados(estado.current, [...novos.values()], mesas.map((m) => m.id))
+    if (repetidos.length) return avisar(`Já existem mesas com ${repetidos.slice(0, 4).map((n) => nomeMesa({ numero: n })).join(', ')}${repetidos.length > 4 ? '…' : ''} fora da seleção. Comece de outro número ou use um prefixo.`, 'erro')
+    mudarElementos((els) => els.map((e) => (novos.has(e.id) ? { ...e, numero: novos.get(e.id) } : e)))
+    setJanela(null)
+    const lista = [...novos.values()]
+    avisar(`${lista.length} mesa(s) renumerada(s): ${nomeMesa({ numero: lista[0] })} até ${nomeMesa({ numero: lista[lista.length - 1] })}. Ctrl+Z desfaz.`)
+  }
 
   const apagar = () => {
     if (!selecionados.length) return
@@ -802,6 +842,12 @@ function EditorSalao({ filial }) {
             </button>
           ))}
         </div>
+        {totalMesas > 0 && (
+          <form className="salao-ferramentas__grupo salao-ferramentas__busca" onSubmit={acharNoSalao} role="search">
+            <span className="salao-ferramentas__rotulo">Achar</span>
+            <Entrada icone="busca" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Mesa nº" aria-label="Achar mesa pelo número, em qualquer ambiente" />
+          </form>
+        )}
       </div>
 
       <div className="salao-editor">
@@ -840,6 +886,7 @@ function EditorSalao({ filial }) {
               {ordenados.map((el) => (
                 <g
                   key={el.id}
+                  data-id={el.id}
                   className="salao-editor__item"
                   onPointerDown={(e) => aoApertarElemento(e, el)}
                   onDoubleClick={() => ehMesa(el) && document.getElementById('campo-numero-mesa')?.focus()}
@@ -912,6 +959,7 @@ function EditorSalao({ filial }) {
                 mudarElementos((els) => els.map((e) => novos.get(e.id) || e))
               }}
               aoMudar={(fn, chave) => mudarSelecionados(fn, chave)}
+              aoRenumerar={() => setJanela('renumerar')}
               aoDuplicar={duplicar}
               aoApagar={apagar}
               aoLimpar={() => setSelecao([])}
@@ -936,11 +984,11 @@ function EditorSalao({ filial }) {
       {janela === 'varias' && (
         <VariasMesas
           primeiro={proximoNumero(ambientes)[0]}
-          aoCriar={({ quantidade, forma, lugares, colunas }) => {
-            const numeros = proximoNumero(estado.current, quantidade)
+          ambientes={ambientes}
+          aoCriar={({ quantidade, forma, lugares, colunas, numeros, espaco }) => {
             const c = caixaDosElementos(ambiente.elementos)
             const inicio = { x: 60, y: c ? encaixar(c.y + c.h + 60) : 60 }
-            const mesas = gradeDeMesas({ quantidade, forma, lugares, colunas, numeros, inicio })
+            const mesas = gradeDeMesas({ quantidade, forma, lugares, colunas, numeros, inicio, espaco })
             const fundo = Math.max(...mesas.map((m) => m.y + m.h)) + 60
             const direita = Math.max(...mesas.map((m) => m.x + m.w)) + 60
             mudar((lista) =>
@@ -958,11 +1006,12 @@ function EditorSalao({ filial }) {
             setSelecao(mesas.map((m) => m.id))
             setJanela(null)
             setTimeout(enquadrar, 0)
-            avisar(`${quantidade} mesa(s) criada(s), da ${nomeMesa({ numero: numeros[0] })} à ${nomeMesa({ numero: numeros[numeros.length - 1] })}. Arraste para posicionar.`)
+            avisar(`${quantidade} mesa(s) criada(s), da ${nomeMesa({ numero: numeros[0] })} à ${nomeMesa({ numero: numeros[numeros.length - 1] })}. Arraste o grupo inteiro para posicionar.`)
           }}
           aoFechar={() => setJanela(null)}
         />
       )}
+      {janela === 'renumerar' && <Renumerar mesas={selecionados.filter(ehMesa)} aoAplicar={aplicarNumeros} aoFechar={() => setJanela(null)} />}
       {janela === 'modelos' && (
         <Modal aberto aoFechar={() => setJanela(null)} titulo="Modelos prontos" subtitulo="O modelo entra como ambiente novo, ao lado dos que já existem. Depois é só ajustar." largura="gg">
           <ModelosSalao aoEscolher={usarModelo} />
@@ -1231,16 +1280,18 @@ function PainelElemento({ el, ambientes, ambiente, comConta, sobreposta, aoMudar
   )
 }
 
-function PainelVarios({ selecionados, aoMudarTodos, aoMudar, aoDuplicar, aoApagar, aoLimpar }) {
+function PainelVarios({ selecionados, aoMudarTodos, aoMudar, aoRenumerar, aoDuplicar, aoApagar, aoLimpar }) {
   const mesas = selecionados.filter(ehMesa)
   const lugares = mesas.length && mesas.every((m) => m.lugares === mesas[0].lugares) ? mesas[0].lugares : null
+  const forma = mesas.length && mesas.every((m) => m.forma === mesas[0].forma) ? mesas[0].forma : null
+  const nomes = ordemDeLeitura(mesas).map(nomeMesa)
   const botao = (icone, rotulo, fn, desabilitado) => <BotaoIcone key={icone} icone={icone} rotulo={rotulo} variante="contorno" onClick={fn} disabled={desabilitado} />
   return (
     <div className="pilha">
       <div>
         <p className="salao-painel__tipo">Seleção</p>
         <h2 className="salao-painel__titulo">{selecionados.length} itens</h2>
-        <p className="mudo">{mesas.length ? `${mesas.length} mesa(s): ${mesas.map(nomeMesa).join(', ')}` : 'Nenhuma mesa'}</p>
+        <p className="mudo">{mesas.length ? `${mesas.length} mesa(s): ${nomes.length > 8 ? `${nomes.slice(0, 6).join(', ')} … ${nomes[nomes.length - 1]}` : nomes.join(', ')}` : 'Nenhuma mesa'}</p>
       </div>
       <div>
         <p className="campo__rotulo">Alinhar</p>
@@ -1261,6 +1312,30 @@ function PainelVarios({ selecionados, aoMudarTodos, aoMudar, aoDuplicar, aoApaga
           {selecionados.length < 3 && <small className="mudo">escolha 3 ou mais</small>}
         </div>
       </div>
+      {mesas.length > 0 && (
+        <div>
+          <p className="campo__rotulo">Formato das {mesas.length} mesa(s)</p>
+          <Segmentos
+            rotulo="Formato das mesas"
+            tamanho="p"
+            valor={forma}
+            aoMudar={(f) =>
+              aoMudar((x) => {
+                if (!ehMesa(x)) return x
+                const nova = FORMAS_MESA[f]
+                // Troca pelo centro, para a mesa não "andar"
+                return { ...x, forma: f, w: nova.w, h: nova.h, x: Math.round(x.x + x.w / 2 - nova.w / 2), y: Math.round(x.y + x.h / 2 - nova.h / 2), lugares: f === 'banqueta' ? 1 : x.forma === 'banqueta' ? nova.lugares : x.lugares }
+              }, 'forma-varios')
+            }
+            opcoes={Object.entries(FORMAS_MESA).map(([valor, f]) => ({ valor, rotulo: f.nome }))}
+          />
+        </div>
+      )}
+      {mesas.length > 1 && (
+        <Botao variante="secundario" tamanho="p" icone="lista" onClick={aoRenumerar}>
+          Renumerar em ordem
+        </Botao>
+      )}
       {mesas.length > 0 && <Contador rotulo={lugares ? 'Lugares em cada mesa' : 'Lugares em cada mesa (diferentes agora)'} valor={lugares || mesas[0].lugares} aoMudar={(v) => aoMudar((x) => (ehMesa(x) ? { ...x, lugares: v } : x), 'lugares-varios')} />}
       <div className="linha linha--quebra">
         <Botao variante="secundario" tamanho="p" icone="copiar" onClick={aoDuplicar}>
@@ -1323,52 +1398,162 @@ function NomeAmbiente({ inicial, existentes, aoSalvar, aoFechar }) {
   )
 }
 
-function VariasMesas({ primeiro, aoCriar, aoFechar }) {
-  const [quantidade, setQuantidade] = useState(6)
+// Prévia pequena de mesas com os números que vão ficar
+function PreviaNumeros({ mesas, numeros }) {
+  const c = caixaDosElementos(mesas)
+  if (!c) return null
+  const m = 20
+  return (
+    <svg className="salao-previa-numeros" viewBox={`${c.x - m} ${c.y - m} ${c.w + m * 2} ${c.h + m * 2}`} aria-hidden="true">
+      {mesas.map((el) => (
+        <g key={el.id} transform={`translate(${el.x} ${el.y})`}>
+          {sempreRedondo(el) ? <ellipse cx={el.w / 2} cy={el.h / 2} rx={el.w / 2} ry={el.h / 2} /> : <rect width={el.w} height={el.h} rx={8} />}
+          <text x={el.w / 2} y={el.h / 2} textAnchor="middle" dominantBaseline="central" fontSize={Math.min(28, Math.max(14, (el.w * 0.9) / Math.max(2, String(numeros.get(el.id)).length * 0.62)))}>
+            {numeros.get(el.id)}
+          </text>
+        </g>
+      ))}
+    </svg>
+  )
+}
+
+const ORDENS = [
+  { valor: 'fileiras', rotulo: 'Por fileiras' },
+  { valor: 'zigue', rotulo: 'Zigue-zague' },
+  { valor: 'colunas', rotulo: 'Por colunas' },
+]
+
+// Campos de numeração usados ao criar e ao renumerar
+function CamposNumeracao({ inicio, prefixo, aoMudarInicio, aoMudarPrefixo }) {
+  return (
+    <div className="grade-2">
+      <Campo rotulo="Começar do número" ajuda="Ex.: 1, 101, 201">
+        {(p) => <Entrada {...p} value={inicio} onChange={(e) => aoMudarInicio(e.target.value.replace(/\D/g, '').slice(0, 5))} inputMode="numeric" maxLength={5} />}
+      </Campo>
+      <Campo rotulo="Prefixo (opcional)" ajuda="Ex.: V para V1, V2… na varanda">
+        {(p) => <Entrada {...p} value={prefixo} onChange={(e) => aoMudarPrefixo(e.target.value.replace(/\s/g, '').slice(0, 4))} maxLength={4} placeholder="Nenhum" />}
+      </Campo>
+    </div>
+  )
+}
+
+function VariasMesas({ primeiro, ambientes, aoCriar, aoFechar }) {
+  const [quantidade, setQuantidade] = useState(12)
   const [forma, setForma] = useState('quadrada')
   const [lugares, setLugares] = useState(4)
-  const [colunas, setColunas] = useState(3)
-  const ultimo = /^\d+$/.test(primeiro) ? String(Number(primeiro) + quantidade - 1) : null
+  const [colunas, setColunas] = useState(6)
+  const [espaco, setEspaco] = useState('normal')
+  const [inicio, setInicio] = useState(/^\d+$/.test(primeiro) ? primeiro : '1')
+  const [prefixo, setPrefixo] = useState('')
+  const numeros = sequenciaDeNumeros({ inicio: inicio || '1', prefixo, quantidade })
+  const repetidos = numerosOcupados(ambientes, numeros)
+  const porFileira = Math.min(colunas, quantidade)
+  const previa = useMemo(() => {
+    const mesas = gradeDeMesas({ quantidade, forma, lugares, colunas: porFileira, numeros, inicio: { x: 0, y: 0 }, espaco: ESPACOS[espaco].valor })
+    return { mesas, numeros: new Map(mesas.map((m) => [m.id, m.numero])) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quantidade, forma, porFileira, espaco, numeros.join()])
+  const fileiras = Math.ceil(quantidade / porFileira)
   return (
     <Modal
       aberto
       aoFechar={aoFechar}
       titulo="Várias mesas de uma vez"
-      subtitulo="Elas entram em fileiras, embaixo do que já está desenhado. Depois é só arrastar para o lugar."
-      largura="m"
+      subtitulo="Para salões grandes: monte as fileiras aqui e depois arraste o bloco inteiro para o lugar."
+      largura="g"
       rodape={
         <>
           <Botao variante="secundario" onClick={aoFechar}>
             Cancelar
           </Botao>
-          <Botao icone="mais" onClick={() => aoCriar({ quantidade, forma, lugares: forma === 'banqueta' ? 1 : lugares, colunas: Math.min(colunas, quantidade) })}>
+          <Botao icone="mais" disabled={repetidos.length > 0} onClick={() => aoCriar({ quantidade, forma, lugares: forma === 'banqueta' ? 1 : lugares, colunas: porFileira, numeros, espaco: ESPACOS[espaco].valor })}>
             Criar {quantidade} mesa(s)
           </Botao>
         </>
       }
     >
-      <div className="pilha">
-        <div>
-          <p className="campo__rotulo">Formato</p>
-          <Segmentos
-            rotulo="Formato"
-            valor={forma}
-            aoMudar={(f) => {
-              setForma(f)
-              setLugares(FORMAS_MESA[f].lugares)
-            }}
-            opcoes={Object.entries(FORMAS_MESA).map(([valor, f]) => ({ valor, rotulo: f.nome }))}
-          />
+      <div className="varias-mesas">
+        <div className="pilha">
+          <div>
+            <p className="campo__rotulo">Formato</p>
+            <Segmentos
+              rotulo="Formato"
+              valor={forma}
+              aoMudar={(f) => {
+                setForma(f)
+                setLugares(FORMAS_MESA[f].lugares)
+              }}
+              opcoes={Object.entries(FORMAS_MESA).map(([valor, f]) => ({ valor, rotulo: f.nome }))}
+            />
+          </div>
+          <div className="grade-3">
+            <CampoNumero rotulo="Quantas mesas" valor={quantidade} min={1} max={200} aoMudar={setQuantidade} />
+            <CampoNumero rotulo="Por fileira" valor={colunas} min={1} max={30} aoMudar={setColunas} />
+            {forma !== 'banqueta' && <Contador rotulo="Lugares em cada" valor={lugares} aoMudar={setLugares} />}
+          </div>
+          <div>
+            <p className="campo__rotulo">Espaço entre as mesas</p>
+            <Segmentos rotulo="Espaço entre as mesas" valor={espaco} aoMudar={setEspaco} opcoes={Object.entries(ESPACOS).map(([valor, e]) => ({ valor, rotulo: e.nome }))} />
+          </div>
+          <CamposNumeracao inicio={inicio} prefixo={prefixo} aoMudarInicio={setInicio} aoMudarPrefixo={setPrefixo} />
+          {repetidos.length ? (
+            <p className="salao-painel__aviso" role="alert">
+              <Icone nome="alerta" tamanho={15} /> Já existem {repetidos.slice(0, 3).map((n) => nomeMesa({ numero: n })).join(', ')}
+              {repetidos.length > 3 ? ` e mais ${repetidos.length - 3}` : ''}. Comece de outro número ou use um prefixo.
+            </p>
+          ) : (
+            <p className="mudo">
+              {fileiras} fileira(s) de até {porFileira}: {nomeMesa({ numero: numeros[0] })}
+              {quantidade > 1 ? ` até ${nomeMesa({ numero: numeros[numeros.length - 1] })}` : ''}.
+            </p>
+          )}
         </div>
-        <div className="grade-3">
-          <Contador rotulo="Quantas mesas" valor={quantidade} min={1} max={60} aoMudar={setQuantidade} />
-          {forma !== 'banqueta' && <Contador rotulo="Lugares em cada" valor={lugares} aoMudar={setLugares} />}
-          <Contador rotulo="Por fileira" valor={colunas} min={1} max={12} aoMudar={setColunas} />
+        <figure className="varias-mesas__previa">
+          <PreviaNumeros mesas={previa.mesas} numeros={previa.numeros} />
+          <figcaption className="mudo">Prévia da numeração</figcaption>
+        </figure>
+      </div>
+    </Modal>
+  )
+}
+
+function Renumerar({ mesas, aoAplicar, aoFechar }) {
+  const numericos = mesas.map((m) => m.numero).filter((n) => /^\d+$/.test(n)).map(Number)
+  const [inicio, setInicio] = useState(String(numericos.length ? Math.min(...numericos) : 1))
+  const [prefixo, setPrefixo] = useState('')
+  const [como, setComo] = useState('fileiras')
+  const numeros = useMemo(() => renumerar(mesas, { inicio: inicio || '1', prefixo, como }), [mesas, inicio, prefixo, como])
+  return (
+    <Modal
+      aberto
+      aoFechar={aoFechar}
+      titulo={`Renumerar ${mesas.length} mesas`}
+      subtitulo="Os números seguem a ordem em que as mesas estão no desenho. Contas abertas continuam nas mesmas mesas."
+      largura="g"
+      rodape={
+        <>
+          <Botao variante="secundario" onClick={aoFechar}>
+            Cancelar
+          </Botao>
+          <Botao icone="check" onClick={() => aoAplicar({ inicio: inicio || '1', prefixo, como })}>
+            Renumerar
+          </Botao>
+        </>
+      }
+    >
+      <div className="varias-mesas">
+        <div className="pilha">
+          <div>
+            <p className="campo__rotulo">Ordem</p>
+            <Segmentos rotulo="Ordem da numeração" valor={como} aoMudar={setComo} opcoes={ORDENS} />
+            <p className="mudo">{{ fileiras: 'Da esquerda para a direita, fileira por fileira.', zigue: 'Uma fileira para a direita, a outra de volta: o caminho de quem anda entre as mesas.', colunas: 'De cima para baixo, coluna por coluna.' }[como]}</p>
+          </div>
+          <CamposNumeracao inicio={inicio} prefixo={prefixo} aoMudarInicio={setInicio} aoMudarPrefixo={setPrefixo} />
         </div>
-        <p className="mudo">
-          Numeração: {nomeMesa({ numero: primeiro })}
-          {ultimo && quantidade > 1 ? ` até a ${nomeMesa({ numero: ultimo })}` : ''}. Dá para trocar o número de cada uma depois.
-        </p>
+        <figure className="varias-mesas__previa">
+          <PreviaNumeros mesas={mesas} numeros={numeros} />
+          <figcaption className="mudo">Como vai ficar</figcaption>
+        </figure>
       </div>
     </Modal>
   )
