@@ -107,8 +107,15 @@ Mesma organização do PDV Legal, mais o salão:
   redondas e banquetas com as cadeiras, e referências como balcão, parede, porta, planta, área e
   texto. Arrastar, girar, mudar o tamanho, alinhar, duplicar, várias mesas de uma vez, grade,
   zoom, desfazer e atalhos de teclado; tudo salvo sozinho. Começa de um modelo pronto ou copiando o
-  salão de outra filial. **Mesas agora** mostra o salão ao vivo, os números do dia e o que pede
+  salão de outra filial. Para salões grandes (100, 200 mesas): criar até 200 mesas em fileiras
+  com prévia, começo e prefixo da numeração (101…, V1…); renumerar uma seleção por fileiras,
+  zigue-zague ou colunas; trocar o formato de várias de uma vez; e achar uma mesa pelo número em
+  qualquer ambiente. **Mesas agora** mostra o salão ao vivo, os números do dia e o que pede
   atenção (prato pronto esperando, conta pedida, mesa sem pedido, mesa aberta há horas).
+- **Análise das mesas** (no caixa e em Mesas agora): todas as mesas em cartões lado a lado, com
+  número, valor e tempo; contadores que filtram (livres, ocupadas, pediram a conta, pedem
+  atenção), ordem por número, mais tempo ou maior valor, e busca que filtra enquanto digita. Vira
+  a visão padrão quando a loja tem mais de 40 mesas.
 - **Relatórios**: por dia, produto, forma de pagamento, atendente, filial, mesa (contas, pessoas,
   tempo médio, gasto por pessoa), taxa de serviço por garçom, cancelamentos e descontos, venda a
   venda; exporta para Excel (CSV).

@@ -368,15 +368,18 @@ export function ListaMesas({ grupos, aoTocar, escolhida, podeTocar }) {
   )
 }
 
+// filtro: 'todas' | 'livres' | 'ocupadas' | 'fechando' | 'atencao'
+export const passaFiltro = (s, filtro) =>
+  filtro === 'todas' ||
+  (filtro === 'livres' && (s?.estado || 'livre') === 'livre') ||
+  (filtro === 'ocupadas' && Boolean(s?.conta)) ||
+  (filtro === 'fechando' && s?.estado === 'fechando') ||
+  (filtro === 'atencao' && Boolean(s?.atencao || s?.prontos > 0))
+
 // Monta os grupos da lista: um por ambiente e, no fim, as contas cuja mesa
-// saiu do mapa. filtro: 'todas' | 'livres' | 'ocupadas' | 'fechando' | 'atencao'
+// saiu do mapa.
 export function gruposDaLista(salao, filtro = 'todas') {
-  const passa = (s) =>
-    filtro === 'todas' ||
-    (filtro === 'livres' && s?.estado === 'livre') ||
-    (filtro === 'ocupadas' && s?.conta) ||
-    (filtro === 'fechando' && s?.estado === 'fechando') ||
-    (filtro === 'atencao' && (s?.atencao || s?.prontos > 0))
+  const passa = (s) => passaFiltro(s, filtro)
   const grupos = salao.ambientes.map((a) => ({
     id: a.id,
     nome: a.nome,
@@ -407,5 +410,168 @@ export function LegendaSalao({ salao }) {
         </li>
       ))}
     </ul>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Análise: todas as mesas em cartões, lado a lado, para salões grandes (100,
+// 200 mesas). Cabe tudo numa tela, a cor e o texto dizem a situação, e os
+// contadores no topo também filtram.
+
+export const FILTROS_MESAS = [
+  { valor: 'todas', rotulo: 'Todas', tom: 'todas' },
+  { valor: 'livres', rotulo: 'Livres', tom: 'livre' },
+  { valor: 'ocupadas', rotulo: 'Ocupadas', tom: 'ocupada' },
+  { valor: 'fechando', rotulo: 'Pediram a conta', tom: 'fechando' },
+  { valor: 'atencao', rotulo: 'Pedem atenção', tom: 'atencao' },
+]
+
+const ORDENS_PAINEL = [
+  { valor: 'numero', rotulo: 'Número' },
+  { valor: 'tempo', rotulo: 'Mais tempo' },
+  { valor: 'valor', rotulo: 'Maior valor' },
+]
+
+const chaveNum = (m) => String(m.numero ?? '').toLowerCase()
+
+function CartaoAnalise({ mesa, situacao: s, escolhida, permitida, aoTocar }) {
+  const estado = s?.estado || (mesa.ativa === false ? 'inativa' : 'livre')
+  return (
+    <button
+      type="button"
+      className={`analise-mesa analise-mesa--${estado} ${s?.atencao ? 'analise-mesa--atencao' : ''} ${escolhida ? 'analise-mesa--escolhida' : ''}`}
+      onClick={() => aoTocar?.(mesa)}
+      disabled={!permitida}
+      aria-label={descreverSituacao(mesa, s)}
+      aria-pressed={escolhida || undefined}
+    >
+      <span className="analise-mesa__numero">{mesa.numero}</span>
+      {s?.conta ? (
+        <>
+          <span className="analise-mesa__valor numero">{valor(s.totais.falta)}</span>
+          <span className="analise-mesa__tempo numero">
+            {decorrido(s.conta.abertaEm)}
+            {s.conta.pessoas ? ` · ${s.conta.pessoas}p` : ''}
+          </span>
+        </>
+      ) : (
+        <span className="analise-mesa__tempo">{estado === 'inativa' ? 'fora de uso' : mesa.foraDoMapa ? 'fora do mapa' : mesa.lugares ? `${mesa.lugares} lug.` : ''}</span>
+      )}
+      {(s?.prontos > 0 || s?.estado === 'fechando' || s?.atencao) && (
+        <span className="analise-mesa__selos" aria-hidden="true">
+          {s.prontos > 0 && (
+            <span className="analise-mesa__selo analise-mesa__selo--pronto" title="Pronto para servir">
+              <Icone nome="check" tamanho={11} traco={3} />
+              {s.prontos > 1 ? s.prontos : ''}
+            </span>
+          )}
+          {s.estado === 'fechando' && (
+            <span className="analise-mesa__selo analise-mesa__selo--conta" title="Pediu a conta">
+              <Icone nome="recibo" tamanho={11} traco={2.6} />
+            </span>
+          )}
+          {s.atencao && (
+            <span className="analise-mesa__selo analise-mesa__selo--atencao" title="Sem pedido há tempo">
+              <Icone nome="relogio" tamanho={11} traco={2.6} />
+            </span>
+          )}
+        </span>
+      )}
+    </button>
+  )
+}
+
+// busca: filtra pelo começo do número enquanto digita ("4" mostra 4, 40–49…)
+export function AnaliseMesas({ salao, aoTocar, escolhida, podeTocar, busca = '', travarFiltro }) {
+  const [filtro, setFiltro] = useState('todas')
+  const [ordem, setOrdem] = useState('numero')
+  const [ambienteId, setAmbienteId] = useState('todos')
+  const filtroAtivo = travarFiltro ? 'todas' : filtro
+
+  const todas = useMemo(
+    () => [
+      ...salao.mesas.map((mesa) => ({ mesa, situacao: salao.situacoes.get(mesa.id) })),
+      ...salao.foraDoMapa.map((x) => ({ ...x, mesa: { ...x.mesa, ambienteId: 'fora', ambienteNome: 'Fora do mapa' } })),
+    ],
+    [salao],
+  )
+  const ambientes = [...salao.ambientes.map((a) => ({ id: a.id, nome: a.nome })), ...(salao.foraDoMapa.length ? [{ id: 'fora', nome: 'Fora do mapa' }] : [])]
+  const doAmbiente = todas.filter((x) => ambienteId === 'todos' || x.mesa.ambienteId === ambienteId)
+  const contagem = Object.fromEntries(FILTROS_MESAS.map((f) => [f.valor, doAmbiente.filter((x) => passaFiltro(x.situacao, f.valor)).length]))
+
+  const termo = busca.trim().toLowerCase()
+  const visiveis = doAmbiente
+    .filter((x) => passaFiltro(x.situacao, filtroAtivo))
+    .filter((x) => !termo || chaveNum(x.mesa).startsWith(termo) || x.mesa.nome?.toLowerCase().includes(termo))
+    .sort((a, b) => {
+      if (ordem === 'tempo') return (b.situacao?.minutos ?? -1) - (a.situacao?.minutos ?? -1) || compararMesas(a.mesa, b.mesa)
+      if (ordem === 'valor') return (b.situacao?.totais?.falta ?? -1) - (a.situacao?.totais?.falta ?? -1) || compararMesas(a.mesa, b.mesa)
+      return compararMesas(a.mesa, b.mesa)
+    })
+
+  // Por número e com todos os ambientes, separa por ambiente; nas outras
+  // ordens o que importa é o ranking, então fica tudo junto
+  const separar = ordem === 'numero' && ambienteId === 'todos' && ambientes.length > 1
+  const grupos = separar ? ambientes.map((a) => ({ ...a, itens: visiveis.filter((x) => x.mesa.ambienteId === a.id) })).filter((g) => g.itens.length) : [{ id: 'tudo', itens: visiveis }]
+
+  return (
+    <div className="analise">
+      {!travarFiltro && (
+        <div className="analise__contadores" role="radiogroup" aria-label="Filtrar mesas">
+          {FILTROS_MESAS.map((f) => (
+            <button key={f.valor} type="button" role="radio" aria-checked={filtro === f.valor} className={`analise__contador analise__contador--${f.tom}`} onClick={() => setFiltro(filtro === f.valor ? 'todas' : f.valor)}>
+              <strong className="numero">{contagem[f.valor]}</strong>
+              <span>{f.rotulo}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="analise__barra">
+        {ambientes.length > 1 && (
+          <label className="analise__escolha">
+            <span>Ambiente</span>
+            <select value={ambienteId} onChange={(e) => setAmbienteId(e.target.value)}>
+              <option value="todos">Todos</option>
+              {ambientes.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label className="analise__escolha">
+          <span>Ordenar</span>
+          <select value={ordem} onChange={(e) => setOrdem(e.target.value)}>
+            {ORDENS_PAINEL.map((o) => (
+              <option key={o.valor} value={o.valor}>
+                {o.rotulo}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="analise__total mudo" role="status">
+          {visiveis.length === doAmbiente.length ? `${visiveis.length} mesa(s)` : `${visiveis.length} de ${doAmbiente.length}`}
+        </span>
+      </div>
+      {visiveis.length ? (
+        grupos.map((g) => (
+          <section key={g.id} className="analise__grupo" aria-label={g.nome || 'Mesas'}>
+            {g.nome && (
+              <h3 className="analise__titulo">
+                {g.nome} <small className="numero">{g.itens.length}</small>
+              </h3>
+            )}
+            <div className="analise__grade">
+              {g.itens.map(({ mesa, situacao }) => (
+                <CartaoAnalise key={mesa.id} mesa={mesa} situacao={situacao} escolhida={escolhida === mesa.id} permitida={!podeTocar || podeTocar(mesa, situacao)} aoTocar={aoTocar} />
+              ))}
+            </div>
+          </section>
+        ))
+      ) : (
+        <p className="analise__vazio mudo">{termo ? `Nenhuma mesa começa com “${busca.trim()}”.` : 'Nenhuma mesa neste filtro agora.'}</p>
+      )}
+    </div>
   )
 }
