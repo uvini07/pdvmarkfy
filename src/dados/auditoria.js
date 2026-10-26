@@ -32,6 +32,10 @@ async function gravar(acao, detalhe, usuario, filialId) {
   registro.hash = await sha256(conteudo(registro))
   registro.criadoEm = registro.em
   banco.inserir('auditoria', registro)
+  // Marca d'água: o maior seq (e seu hash) que já foi gravado, num doc à parte.
+  // Apagar os últimos registros deixa a corrente 1..k internamente válida — só
+  // a marca permite perceber depois que o fim encolheu (ver verificarCorrente).
+  banco.alterarDoc('config', (c) => (registro.seq > (c.auditoriaSeq || 0) ? { auditoriaSeq: registro.seq, auditoriaHash: registro.hash } : {}))
   await banco.aguardar()
 }
 
@@ -50,6 +54,17 @@ export async function verificarCorrente() {
     if (i > 0 && (r.anterior !== lista[i - 1].hash || r.seq !== lista[i - 1].seq + 1)) return { ok: false, posicao: i, registro: r }
     if (i === 0 && r.seq !== 1) return { ok: false, posicao: 0, registro: r }
     if ((await sha256(conteudo(r))) !== r.hash) return { ok: false, posicao: i, registro: r }
+  }
+  // Truncamento do fim: a corrente 1..k pode estar íntegra mas ter perdido os
+  // últimos registros. A marca d'água guarda o maior seq que já existiu; se o
+  // fim atual for menor (ou o registro na marca tiver outro hash), houve corte.
+  const config = banco.doc('config')
+  const marca = config.auditoriaSeq || 0
+  if (marca) {
+    const ultimo = lista[lista.length - 1]
+    if (!ultimo || ultimo.seq < marca) return { ok: false, truncado: true, marca, atual: ultimo?.seq || 0 }
+    const naMarca = lista.find((r) => r.seq === marca)
+    if (naMarca && config.auditoriaHash && naMarca.hash !== config.auditoriaHash) return { ok: false, truncado: true, marca, atual: ultimo.seq }
   }
   return { ok: true, total: lista.length }
 }

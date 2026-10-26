@@ -124,7 +124,7 @@ export function Seguranca() {
         )}
         <Cartao titulo="Integridade do registro">
           <div className="pilha">
-            <p className="mudo">Cada registro guarda um código (hash) do anterior. Se alguém apagar ou mudar um registro direto no navegador, a verificação mostra onde.</p>
+            <p className="mudo">Cada registro guarda um código (hash) do anterior. Se alguém apagar ou mudar um registro direto no navegador — inclusive apagar os últimos — a verificação mostra onde.</p>
             <div className="linha">
               <Botao variante="secundario" icone="escudo-check" onClick={verificar}>
                 Verificar agora
@@ -133,6 +133,10 @@ export function Seguranca() {
                 (verificacao.ok ? (
                   <Selo tom="verde" icone="check">
                     Íntegro, {verificacao.total} registros
+                  </Selo>
+                ) : verificacao.truncado ? (
+                  <Selo tom="vermelho" icone="alerta">
+                    Faltam registros no fim (tinha {verificacao.marca}, tem {verificacao.atual})
                   </Selo>
                 ) : (
                   <Selo tom="vermelho" icone="alerta">

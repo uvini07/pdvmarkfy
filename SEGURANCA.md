@@ -53,6 +53,9 @@
   completo.
 - Os registros são **encadeados por hash** (cada um carrega o hash do anterior). A verificação em
   Segurança e backup aponta exatamente onde alguém apagou ou alterou um registro.
+- Uma **marca d'água** guarda o maior número de sequência já gravado. Apagar os *últimos*
+  registros deixaria a corrente 1..k íntegra, mas a verificação percebe que o fim encolheu e
+  acusa (detecção; sem servidor não há como *impedir*, só flagrar).
 - Uma trava entre abas (Web Locks) impede que caixa e cozinha abertos juntos bifurquem a corrente.
 
 ### Dados
