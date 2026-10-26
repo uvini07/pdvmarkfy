@@ -8,7 +8,8 @@ import { gerarBackup, validarBackup, restaurarBackup } from '../../dados/backup.
 import { useSessao } from '../../estado/sessao.js'
 import { Pagina, BarraFiltros, Cartao } from '../../componentes/Pagina.jsx'
 import { Tabela } from '../../componentes/Tabela.jsx'
-import { Botao, Selecao, Selo } from '../../componentes/ui.jsx'
+import { Botao, Carregando, Selecao, Selo } from '../../componentes/ui.jsx'
+import { desligarComputador, listarAcessos, listarComputadores } from '../../firebase/pdv.js'
 import { Icone } from '../../componentes/Icone.jsx'
 import { avisar, confirmar } from '../../componentes/dialogos.jsx'
 import { baixarArquivo, lerArquivoTexto, gerarCsv } from '../../lib/arquivos.js'
@@ -51,7 +52,7 @@ export function Seguranca() {
       if (!r.ok) return avisar(r.erro, 'erro')
       const ok = await confirmar({
         titulo: 'Restaurar este backup?',
-        texto: `Backup de ${dataHora(r.resumo.geradoEm)} feito por ${r.resumo.geradoPor}: ${r.resumo.vendas} vendas, ${r.resumo.produtos} produtos, ${r.resumo.usuarios} usuários. TUDO o que está neste navegador agora será substituído.`,
+        texto: `Backup de ${dataHora(r.resumo.geradoEm)} feito por ${r.resumo.geradoPor}: ${r.resumo.vendas} vendas, ${r.resumo.produtos} produtos. TUDO o que está neste navegador agora será substituído (usuários e perfis ficam: moram no servidor).`,
         botao: 'Substituir pelos dados do backup',
         perigo: true,
       })
@@ -65,11 +66,10 @@ export function Seguranca() {
 
   const apagarDemonstracao = async () => {
     const demos = vendas.filter((v) => v.demonstracao).length
-    if (!(await confirmar({ titulo: 'Apagar os dados de demonstração?', texto: `Saem ${demos} vendas de exemplo, as contas e o comunicado de exemplo, o estoque inicial e os usuários Ana, Bruno e Cozinha Morumbi. O cardápio, as filiais e os seus usuários ficam.`, botao: 'Apagar demonstração', perigo: true }))) return
+    if (!(await confirmar({ titulo: 'Apagar os dados de demonstração?', texto: `Saem ${demos} vendas de exemplo, as contas e o comunicado de exemplo e o estoque inicial. O cardápio, as filiais e os usuários ficam.`, botao: 'Apagar demonstração', perigo: true }))) return
     banco.substituir('vendas', banco.lista('vendas').filter((v) => !v.demonstracao))
     banco.substituir('contas', banco.lista('contas').filter((c) => !c.demonstracao))
     banco.substituir('comunicados', banco.lista('comunicados').filter((c) => !c.demonstracao))
-    banco.substituir('usuarios', banco.lista('usuarios').filter((u) => !u.demonstracao))
     banco.substituir('saldos', {})
     banco.alterarDoc('config', { demonstracao: false })
     await registrar('dados.apagados', `Dados de demonstração (${demos} vendas)`, { usuario })
@@ -149,19 +149,22 @@ export function Seguranca() {
         {config.demonstracao && pode('admin.backup') && (
           <Cartao titulo="Dados de demonstração">
             <div className="pilha">
-              <p className="mudo">Antes de começar a usar na loja, apague as vendas, contas e usuários de exemplo.</p>
+              <p className="mudo">Antes de começar a usar na loja, apague as vendas e as contas de exemplo.</p>
               <Botao variante="perigo" icone="lixeira" onClick={apagarDemonstracao}>
                 Apagar demonstração
               </Botao>
             </div>
           </Cartao>
         )}
+        {pode('admin.config') && <Computadores filiais={filiais} />}
       </div>
+
+      {pode('admin.auditoria') && <AcessosServidor filiais={filiais} tom={tom} />}
 
       {pode('admin.auditoria') && (
         <>
           <h2 className="titulo-secao">
-            <Icone nome="escudo" tamanho={22} /> Registro de segurança
+            <Icone nome="escudo" tamanho={22} /> Registro de segurança deste computador
           </h2>
           <BarraFiltros busca={busca} aoBuscar={setBusca} placeholder="Pessoa ou detalhe" total={lista.length}>
             <Selecao value={acao} onChange={(e) => setAcao(e.target.value)} aria-label="Ação" vazio="Todas as ações" opcoes={Object.entries(ROTULOS_ACAO).map(([valor, rotulo]) => ({ valor, rotulo }))} />
@@ -183,5 +186,96 @@ export function Seguranca() {
         </>
       )}
     </Pagina>
+  )
+}
+
+// Computadores liberados como caixa. Desligar um (sumiu, foi roubado, trocou
+// de loja) derruba a liberação dele no servidor: para voltar, só liberando de novo.
+function Computadores({ filiais }) {
+  const [lista, setLista] = useState(null)
+  const [erro, setErro] = useState('')
+  const carregar = () =>
+    listarComputadores()
+      .then((r) => (setLista(r.terminais), setErro('')))
+      .catch((e) => setErro(e.message))
+  useEffect(() => {
+    carregar()
+  }, [])
+
+  const desligar = async (t) => {
+    if (!(await confirmar({ titulo: `Desligar ${t.nome}?`, texto: 'Ele para de abrir o caixa na hora. Para usar de novo, um gerente libera com o Google.', botao: 'Desligar', perigo: true }))) return
+    try {
+      await desligarComputador(t.id)
+      avisar(`${t.nome} desligado`)
+      carregar()
+    } catch (e) {
+      avisar(e.message, 'erro')
+    }
+  }
+
+  const ativos = (lista || []).filter((t) => t.ativo)
+  return (
+    <Cartao titulo="Computadores liberados">
+      <div className="pilha">
+        <p className="mudo">Só estes computadores abrem o caixa e a cozinha com PIN. Desligue o que sumir ou mudar de loja.</p>
+        {erro && <p className="campo__erro">{erro}</p>}
+        {!lista && !erro && <Carregando />}
+        {lista && !ativos.length && <p className="mudo">Nenhum computador liberado ainda.</p>}
+        {ativos.map((t) => (
+          <div key={t.id} className="linha linha--entre">
+            <span>
+              <strong>{t.nome}</strong> · {filiais.find((f) => f.id === t.filialId)?.nome || t.filialId}
+              <br />
+              <small className="mudo">{t.ultimoUso ? `Último uso ${dataHora(t.ultimoUso)}` : `Liberado ${t.criadoEm ? dataHora(t.criadoEm) : ''}`}{t.criadoPorNome ? ` por ${t.criadoPorNome}` : ''}</small>
+            </span>
+            <Botao variante="contorno" tamanho="p" onClick={() => desligar(t)}>
+              Desligar
+            </Botao>
+          </div>
+        ))}
+      </div>
+    </Cartao>
+  )
+}
+
+// Acessos registrados no servidor: entradas, PIN errado, bloqueios,
+// autorizações e mudanças de usuário. Ninguém edita nem apaga (nem daqui).
+function AcessosServidor({ filiais, tom }) {
+  const [lista, setLista] = useState(null)
+  const [erro, setErro] = useState('')
+  const carregar = () =>
+    listarAcessos()
+      .then((r) => (setLista(r.registros), setErro('')))
+      .catch((e) => setErro(e.message))
+  useEffect(() => {
+    carregar()
+  }, [])
+
+  return (
+    <>
+      <h2 className="titulo-secao">
+        <Icone nome="escudo-check" tamanho={22} /> Acessos (servidor)
+        <Botao variante="fantasma" tamanho="p" icone="atualizar" onClick={carregar}>
+          Atualizar
+        </Botao>
+      </h2>
+      <p className="mudo">Gravado no servidor da Sua Coxinha a cada entrada, PIN errado, bloqueio e autorização, em todos os computadores. Não dá para apagar.</p>
+      {erro && <p className="campo__erro">{erro}</p>}
+      {!lista && !erro ? (
+        <Carregando />
+      ) : (
+        <Tabela
+          linhas={lista || []}
+          densa
+          colunas={[
+            { id: 'em', titulo: 'Quando', valor: (r) => (r.em ? dataHora(r.em) : ''), largura: 150 },
+            { id: 'usuarioNome', titulo: 'Quem', largura: 160 },
+            { id: 'acao', titulo: 'Ação', render: (r) => <Selo tom={tom(r.acao)}>{ROTULOS_ACAO[r.acao] || r.acao}</Selo> },
+            { id: 'detalhe', titulo: 'Detalhe' },
+            { id: 'filial', titulo: 'Filial', valor: (r) => filiais.find((f) => f.id === r.filialId)?.nome || '' },
+          ]}
+        />
+      )}
+    </>
   )
 }

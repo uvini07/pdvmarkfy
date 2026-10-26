@@ -8,9 +8,15 @@ export default defineConfig({
     sourcemap: false,
     rolldownOptions: {
       output: {
-        // O React vai num arquivo à parte: muda pouco entre as versões do PDV,
-        // então o navegador continua com ele em cache quando o PDV é atualizado.
-        codeSplitting: { groups: [{ name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ }] },
+        // O React e o Firebase vão em arquivos à parte: mudam pouco entre as
+        // versões do PDV, então o navegador continua com eles em cache quando o
+        // PDV é atualizado.
+        codeSplitting: {
+          groups: [
+            { name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+            { name: 'firebase', test: /node_modules[\\/](firebase|@firebase|idb)[\\/]/ },
+          ],
+        },
       },
     },
   },

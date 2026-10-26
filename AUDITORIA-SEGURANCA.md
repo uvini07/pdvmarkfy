@@ -37,7 +37,13 @@ servidor" (já descrito no `SEGURANCA.md`). O único conserto de fundo para as m
 
 ## Achados acionáveis (por severidade)
 
-### 1. [ALTO — já documentado] Toda a autorização é no cliente: bypass por devtools
+### 1. [ALTO — já documentado] Toda a autorização é no cliente: bypass por devtools — 🟡 LOGIN CORRIGIDO (fase 1)
+
+> **Fase 1 (login no servidor):** a identidade agora vem de um token emitido pelas funções do
+> Firebase; trocar o `usuarioId` no `sessionStorage` derruba a sessão em vez de trocar de pessoa
+> (verificado no navegador contra os emuladores). Bloqueio de tentativas, usuários e perfis
+> também estão no servidor. **Continua aberto** para os dados de venda, estoque e cadastros, que
+> ainda ficam no IndexedDB até as fases 2 e 3.
 A regra de acesso vive no navegador. Quem tem acesso técnico à máquina do caixa pode,
 pelas ferramentas de desenvolvedor:
 
@@ -56,7 +62,12 @@ Mitigações operacionais enquanto isso:
 
 *Mapeamento:* OWASP A01 (Broken Access Control) / A04 (Insecure Design) — "confiança no cliente".
 
-### 2. [MÉDIO] PIN de 4–6 dígitos é quebrável offline em segundos
+### 2. [MÉDIO] PIN de 4–6 dígitos é quebrável offline em segundos — ✅ CORRIGIDO (fase 1)
+
+> **Corrigido:** o hash do PIN mora em `pdv_segredos`, que nenhum navegador lê (testado nas
+> regras), e a conferência é feita pelas funções com bloqueio em transação (tentativas em
+> paralelo não furam o limite — testado). A atualização do PDV apaga do IndexedDB as coleções
+> antigas que guardavam os hashes.
 Com `hash` + `sal` + `iteracoes` lidos do IndexedDB, o espaço de 10⁴–10⁶ PINs é força-bruta
 trivial — mesmo com 210k iterações, um PC comum testa tudo em segundos a minutos. O bloqueio
 progressivo **não** protege ataque offline (ele só vale online, na tela).
@@ -104,7 +115,10 @@ Ações:
   restauração deixe rastro.
 - Conserto de fundo: backup assinado no servidor (HMAC/assinatura).
 
-### 5. [BAIXO — defesa em profundidade] `autorizar()` não revalida a filial
+### 5. [BAIXO — defesa em profundidade] `autorizar()` não revalida a filial — ✅ CORRIGIDO (fase 1)
+
+> **Corrigido:** a autorização de supervisor agora é a função `pdvAutorizar`, que confere PIN,
+> permissão e filial do supervisor e de quem pede, e grava cada autorização no servidor.
 A UI já filtra supervisores por `acessaFilial`, e **todos** os chamadores de `pedirAutorizacao`
 passam `filialId` (verificado). Mas a função `autorizar()` em si só checa `pode(permissao)`.
 Quando migrar para servidor, a verificação de filial precisa estar **dentro** do `autorizar`
@@ -115,7 +129,10 @@ Necessário pelos estilos inline do React. Risco baixo (exfiltração via CSS é
 Opcional: mover estilos inline para classes e remover `unsafe-inline`, ou adotar Trusted Types
 (`require-trusted-types-for 'script'`) como reforço. Não urgente.
 
-### 7. [INFO] Credenciais de demonstração com PIN público
+### 7. [INFO] Credenciais de demonstração com PIN público — ✅ CORRIGIDO (fase 1)
+
+> **Corrigido:** não existem mais usuários de demonstração. A demonstração só traz vendas de
+> exemplo; cada pessoa é cadastrada com o próprio PIN.
 `ana/4821`, `bruno/7392` + senha `gerente2026`, `cozinha.morumbi/5170`. Já há aviso na
 retaguarda e botão para apagar. Risco real só se a loja for para produção **sem** removê-las.
 Sugestão: travar o "ir para produção" (ou exibir bloqueio, não só aviso) enquanto existir
@@ -127,6 +144,15 @@ segurança, então não é vulnerabilidade — só nota de qualidade. Se algum d
 amostragem por rejeição.
 
 ---
+
+## Fase 1 entregue: login no servidor (mesmo Firebase do app e do site)
+
+- Funções `pdv*` e regras do PDV no repositório **sua-coxinha-app** (PR próprio), com 18 testes
+  das funções e 41 testes de regras no emulador; os 132 testes do clube seguem passando.
+- PDV ligado ao Firebase: computadores liberados por gerente, PIN conferido no servidor,
+  retaguarda com Google, autorização de supervisor e registro de acessos no servidor.
+- Testado de ponta a ponta no navegador contra os emuladores (Auth, Firestore e as funções reais).
+- Passos únicos para publicar: ver "Para publicar o login" em `SEGURANCA.md`.
 
 ## Prioridade recomendada
 

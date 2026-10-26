@@ -40,7 +40,9 @@ export async function validarBackup(texto) {
     return { ok: false, erro: 'O backup foi alterado ou está corrompido (a soma de verificação não confere).' }
   for (const nome of COLECOES) if (nome in arquivo.dados && !Array.isArray(arquivo.dados[nome])) return { ok: false, erro: `Coleção "${nome}" inválida no backup.` }
   for (const nome of DOCUMENTOS) if (nome in arquivo.dados && typeof arquivo.dados[nome] !== 'object') return { ok: false, erro: `Documento "${nome}" inválido no backup.` }
-  if (!arquivo.dados.usuarios?.length || !arquivo.dados.config?.configuradoEm) return { ok: false, erro: 'Backup incompleto: faltam usuários ou configuração.' }
+  // Usuários e perfis não entram no backup: moram no servidor. Backup antigo
+  // que ainda os tenha é aceito, mas essa parte é ignorada na restauração.
+  if (!arquivo.dados.config?.configuradoEm) return { ok: false, erro: 'Backup incompleto: falta a configuração.' }
   return {
     ok: true,
     arquivo,
@@ -49,7 +51,6 @@ export async function validarBackup(texto) {
       geradoPor: arquivo.geradoPor,
       vendas: arquivo.dados.vendas?.length || 0,
       produtos: arquivo.dados.produtos?.length || 0,
-      usuarios: arquivo.dados.usuarios?.length || 0,
     },
   }
 }

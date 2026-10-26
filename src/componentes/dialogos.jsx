@@ -1,18 +1,16 @@
 // Diálogos globais chamados como função, de qualquer lugar:
 //   avisar('Produto salvo')                       → aviso rápido no canto
 //   await confirmar({ titulo, texto, perigo })    → true | false
-//   await pedirAutorizacao({ permissao, acao })   → usuário que autorizou | null
+//   await pedirAutorizacao({ permissao, acao, filialId }) → { id, nome, autorizacaoId } de quem autorizou | null
 //   await escolher({ titulo, opcoes })             → opção escolhida | null
 // O componente <Dialogos /> fica uma vez só, no App.
 
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Modal } from './Modal.jsx'
-import { Botao } from './ui.jsx'
+import { Botao, Carregando } from './ui.jsx'
 import { Icone } from './Icone.jsx'
 import { TecladoPin } from './TecladoPin.jsx'
-import { banco } from '../dados/banco.js'
-import { pode, acessaFilial } from '../dados/permissoes.js'
-import { autorizar } from '../dados/usuarios.js'
+import { autorizar, listarSupervisores } from '../firebase/pdv.js'
 
 let estado = { avisos: [], confirmacao: null, autorizacao: null, escolha: null }
 const ouvintes = new Set()
@@ -92,14 +90,20 @@ function Confirmacao({ dados }) {
   )
 }
 
+// Quem pode autorizar e a conferência do PIN vêm do servidor: o PIN do
+// gerente nunca é conferido neste navegador, e cada autorização fica
+// registrada lá (pdv_autorizacoes), com quem pediu e quem autorizou.
 function Autorizacao({ dados }) {
+  const [supervisores, setSupervisores] = useState(null)
   const [escolhido, setEscolhido] = useState(null)
   const [erro, setErro] = useState('')
   const [ocupado, setOcupado] = useState(false)
-  const perfis = banco.lista('perfis')
-  const supervisores = banco
-    .lista('usuarios')
-    .filter((u) => u.ativo && u.pin && pode(u, perfis, dados.permissao) && (!dados.filialId || acessaFilial(u, dados.filialId)))
+
+  useEffect(() => {
+    listarSupervisores(dados.permissao, dados.filialId)
+      .then((r) => setSupervisores(r.pessoas))
+      .catch((e) => (setSupervisores([]), setErro(e.message)))
+  }, [dados.permissao, dados.filialId])
 
   const fechar = (r) => {
     mudar({ autorizacao: null })
@@ -108,24 +112,30 @@ function Autorizacao({ dados }) {
 
   const conferir = async (pin) => {
     setOcupado(true)
-    const r = await autorizar(escolhido.id, pin, dados.permissao, dados.acao)
-    setOcupado(false)
-    if (r.ok) fechar(r.usuario)
-    else setErro(r.erro)
+    try {
+      const r = await autorizar({ supervisorId: escolhido.id, pin, permissao: dados.permissao, filialId: dados.filialId, acao: dados.acao })
+      fechar({ ...r.usuario, autorizacaoId: r.autorizacaoId })
+    } catch (e) {
+      setErro(e.message)
+    } finally {
+      setOcupado(false)
+    }
   }
 
   return (
     <Modal aberto aoFechar={() => fechar(null)} titulo="Autorização de supervisor" subtitulo={dados.acao} largura="p" className="tema-escuro">
-      {!supervisores.length && <p className="texto-modal">Nenhum usuário desta filial pode autorizar isso. Peça ao administrador para dar a permissão a um gerente.</p>}
-      {!escolhido && supervisores.length > 0 && (
+      {!supervisores && <Carregando texto="Procurando quem pode autorizar…" />}
+      {!escolhido && erro && <p className="campo__erro" role="alert">{erro}</p>}
+      {supervisores && !supervisores.length && !erro && <p className="texto-modal">Nenhum usuário desta filial pode autorizar isso. Peça ao administrador para dar a permissão a um gerente.</p>}
+      {!escolhido && supervisores?.length > 0 && (
         <ul className="lista-usuarios">
           {supervisores.map((u) => (
             <li key={u.id}>
-              <button type="button" className="cartao-usuario" onClick={() => setEscolhido(u)}>
+              <button type="button" className="cartao-usuario" onClick={() => (setEscolhido(u), setErro(''))} disabled={u.bloqueado}>
                 <span className="cartao-usuario__inicial" aria-hidden="true">
                   {u.nome[0]}
                 </span>
-                <span>{u.nome}</span>
+                <span>{u.nome}{u.bloqueado ? ' (bloqueado)' : ''}</span>
                 <Icone nome="seta-dir" tamanho={18} />
               </button>
             </li>

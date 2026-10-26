@@ -4,8 +4,13 @@ Sistema de ponto de venda da rede Sua Coxinha: **caixa**, **cozinha**, **painel 
 **retaguarda**, com as funções do PDV Legal e a identidade da marca (cores, Satoshi, logo, fotos dos
 produtos e dos sabores, gota e mascote).
 
-Ainda **sem banco de dados**: os dados ficam no próprio navegador (IndexedDB). Toda leitura e
-gravação passa por `src/dados/banco.js`, então trocar pelo banco de verdade muda só esse arquivo.
+**Login no servidor**: usa o mesmo Firebase do app e do site (`suacoxinhaapp`). Usuários, perfis,
+PINs e computadores liberados moram lá, e quem decide quem entra são as funções `pdv*` do
+repositório **sua-coxinha-app** (`functions/pdv/`), com as regras em `firestore.rules` de lá.
+
+Os **outros dados** (vendas, cardápio, estoque…) ainda ficam no próprio navegador (IndexedDB) até
+as próximas fases. Toda leitura e gravação deles passa por `src/dados/banco.js`, então trocar pelo
+banco de verdade muda só esse arquivo.
 
 ## Rodar
 
@@ -16,26 +21,27 @@ npm test           # regras de dinheiro, estoque e segurança
 npm run build      # versão para publicar, em dist/
 ```
 
-No primeiro acesso o PDV pede para criar o **administrador** (login, PIN e senha) e oferece os
-**dados de demonstração**: duas semanas de vendas nas 9 filiais e três usuários de teste da Max Morumbi:
+Para testar o login sem tocar no banco de verdade: no **sua-coxinha-app**, rode
+`npx firebase emulators:start --only auth,firestore,functions`; aqui, crie um `.env.local` com
+`VITE_EMULADORES=true` e rode `npm run dev`.
 
-| Usuário | Perfil | PIN | Senha |
-| --- | --- | --- | --- |
-| Ana Souza | Atendente | 4821 | — |
-| Bruno Lima | Gerente | 7392 | gerente2026 |
-| Cozinha Morumbi | Cozinha | 5170 | — |
+No primeiro acesso de um computador, alguém com acesso às configurações entra com o **Google** e o
+PDV grava o cardápio inicial (com ou sem **dados de demonstração**: duas semanas de vendas nas 9
+filiais). Na primeira vez da rede, o administrador é criado nesse login. Não há usuário de
+demonstração com PIN conhecido: cada pessoa é cadastrada em **Retaguarda › Usuários**.
 
-A retaguarda avisa enquanto esses usuários estiverem ativos. Antes de usar na loja, apague a
-demonstração em **Retaguarda › Segurança e backup**.
+Para virar **caixa ou cozinha**, o computador precisa ser **liberado** uma vez por um gerente (aba
+Caixa → *Liberar com o Google*). Depois, cada pessoa escolhe o nome e digita o PIN. Um computador
+que sumir é desligado em **Retaguarda › Segurança e backup**.
 
 ## As quatro telas
 
 | Tela | Endereço | Quem usa |
 | --- | --- | --- |
-| Caixa | `#/caixa` | atendente, com PIN |
+| Caixa | `#/caixa` | atendente, com PIN, num computador liberado |
 | Cozinha | `#/cozinha` | cozinha, com PIN; fica ligada o dia todo |
 | Painel de senhas | `#/painel/<filial>` | TV do salão; sem login, mostra só número e primeiro nome |
-| Retaguarda | `#/admin` | gerente e franqueadora, com login e senha |
+| Retaguarda | `#/admin` | gerente e franqueadora, com a conta Google cadastrada |
 
 Caixa, cozinha e painel abertos no **mesmo computador** (ou em abas/monitores dele) se atualizam
 sozinhos. Computadores diferentes só vão compartilhar dados quando o banco de dados entrar — vale
@@ -127,7 +133,8 @@ Mesma organização do PDV Legal, mais o salão:
 
 ## Segurança
 
-Resumo em [`SEGURANCA.md`](SEGURANCA.md): PIN e senha só como hash PBKDF2, bloqueio por tentativas,
+Resumo em [`SEGURANCA.md`](SEGURANCA.md): PIN conferido no servidor (o hash nunca chega ao
+navegador), bloqueio por tentativas no servidor, retaguarda com Google, computadores liberados,
 perfis com permissões, autorização de gerente, bloqueio de tela por inatividade, registro de
 auditoria encadeado por hash, backup com soma de verificação, CSV sem injeção de fórmula, CPF
 mascarado e cabeçalhos de segurança na publicação. O mesmo arquivo lista o que precisa de servidor
@@ -138,9 +145,10 @@ para valer em produção.
 ```
 src/
   dados/        banco (IndexedDB), cardápio inicial, vendas, caixa, estoque, preços,
-                usuários, permissões, auditoria, backup, relatórios, demonstração,
+                permissões, auditoria, backup, relatórios, demonstração,
                 salão (planta) e mesas (contas e rodadas)
-  estado/       sessão do usuário
+  firebase/     conexão com o Firebase e o login (funções pdv* do sua-coxinha-app)
+  estado/       sessão do usuário e quem está logado segundo o servidor
   lib/          dinheiro (centavos), datas, validação, segurança (hash), CSV, NF-e
   componentes/  botões, campos, janelas, tabela, gráficos, teclado de PIN, impressão,
                 desenho do salão e conta da mesa

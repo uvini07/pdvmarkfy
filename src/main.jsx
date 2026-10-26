@@ -2,7 +2,6 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import { iniciarBanco } from './dados/banco.js'
-import { atualizarDados } from './dados/inicializar.js'
 import './estilos/tokens.css'
 import './estilos/base.css'
 import './estilos/componentes.css'
@@ -16,7 +15,6 @@ import './estilos/impressao.css'
 const raiz = createRoot(document.getElementById('raiz'))
 
 iniciarBanco()
-  .then(atualizarDados)
   .then(() =>
     raiz.render(
       <StrictMode>

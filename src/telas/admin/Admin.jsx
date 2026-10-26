@@ -158,7 +158,6 @@ export function Admin() {
   const { partes } = useRota()
   const { usuario, filial, filiaisPermitidas, pode } = useSessao()
   const comunicados = useColecao('comunicados')
-  const usuarios = useColecao('usuarios')
   const config = useDoc('config')
   const [menuAberto, setMenuAberto] = useState(false)
 
@@ -172,7 +171,6 @@ export function Admin() {
   }, [partes, todas])
 
   const naoLidos = comunicados.filter((c) => (!c.filiais?.length || c.filiais.includes(filial?.id)) && !c.lidos?.[usuario.id]).length
-  const demosAtivos = usuarios.some((u) => u.demonstracao && u.ativo)
   const diasSemBackup = config.ultimoBackup ? Math.floor((Date.now() - new Date(config.ultimoBackup)) / 86400000) : null
 
   const pontos = useColecao('pontosVenda')
@@ -236,16 +234,8 @@ export function Admin() {
           </div>
         </header>
 
-        {(demosAtivos || (pode('admin.backup') && (diasSemBackup === null || diasSemBackup >= 1))) && (
+        {pode('admin.backup') && (diasSemBackup === null || diasSemBackup >= 1) && (
           <div className="admin__avisos">
-            {demosAtivos && pode('admin.usuarios') && (
-              <p className="faixa faixa--alerta">
-                <Icone nome="alerta" tamanho={18} />
-                <span>
-                  Os usuários de demonstração (Ana, Bruno e Cozinha Morumbi) têm PIN conhecido. <a href="#/admin/usuarios">Troque os PINs ou desative-os</a> antes de usar na loja.
-                </span>
-              </p>
-            )}
             {pode('admin.backup') && (diasSemBackup === null || diasSemBackup >= 1) && (
               <p className="faixa">
                 <Icone nome="nuvem" tamanho={18} />

@@ -25,14 +25,16 @@ import { novoId } from '../lib/seguranca.js'
 
 const NOME_BANCO = 'pdv-sua-coxinha'
 // Versão 2: coleções do salão (ambientes) e das mesas (contasMesa, pedidosMesa).
-// Subir a versão cria só as coleções novas; os dados que já existem ficam.
-const VERSAO = 2
+// Versão 3: usuários e perfis saem do navegador e passam a morar no servidor
+// (src/firebase/pdv.js). As coleções antigas são apagadas: guardavam o hash
+// dos PINs, que não pode ficar no computador.
+// Subir a versão cria só as coleções novas; os outros dados que já existem ficam.
+const VERSAO = 3
+const COLECOES_ANTIGAS = ['usuarios', 'perfis']
 
 export const COLECOES = [
   'filiais',
   'pontosVenda',
-  'perfis',
-  'usuarios',
   'grupos',
   'classes',
   'produtos',
@@ -98,6 +100,7 @@ function abrir() {
     const req = indexedDB.open(NOME_BANCO, VERSAO)
     req.onupgradeneeded = () => {
       const db = req.result
+      for (const nome of COLECOES_ANTIGAS) if (db.objectStoreNames.contains(nome)) db.deleteObjectStore(nome)
       for (const nome of COLECOES) if (!db.objectStoreNames.contains(nome)) db.createObjectStore(nome, { keyPath: 'id' })
       for (const nome of DOCUMENTOS) if (!db.objectStoreNames.contains(nome)) db.createObjectStore(nome)
     }

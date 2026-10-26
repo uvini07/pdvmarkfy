@@ -1,15 +1,26 @@
-// Sessão do usuário logado. Fica no sessionStorage: fecha a aba, acaba a sessão.
-// Nunca guarda PIN, senha ou hash — só quem é, onde está e desde quando.
+// Sessão do usuário logado.
+//
+// Quem a pessoa é vem do servidor: o token que as funções do login emitem
+// (ver src/firebase/pdv.js) e a ficha dela no Firestore (src/estado/rede.js).
+// Editar o sessionStorage não troca de pessoa — o id daqui precisa bater com o
+// do token, e as permissões saem da ficha e dos perfis do servidor.
+//
+// O sessionStorage guarda só onde a pessoa está trabalhando (modo, filial,
+// caixa) e se a tela está bloqueada. Fecha a aba, acaba a sessão.
 //
 // Bloqueio por inatividade: depois de N minutos sem toque nem tecla, a tela pede
-// o PIN de novo (o caixa continua aberto). A sessão inteira expira em X horas.
+// o PIN de novo (o caixa continua aberto). A sessão inteira vence em até 12 horas
+// (o servidor não aceita o token depois disso).
 
 import { useMemo, useSyncExternalStore } from 'react'
-import { banco, useColecao, useDoc } from '../dados/banco.js'
+import { useColecao, useDoc } from '../dados/banco.js'
 import { pode as podeFazer, acessaFilial } from '../dados/permissoes.js'
 import { registrar } from '../dados/auditoria.js'
+import { rede, useRede } from './rede.js'
+import { sairDaPessoa } from '../firebase/pdv.js'
 
 const CHAVE = 'scpdv:sessao'
+const HORAS_MAXIMAS = 12
 const ouvintes = new Set()
 let atual = carregar()
 
@@ -28,9 +39,12 @@ function definir(nova) {
   ouvintes.forEach((fn) => fn())
 }
 
+const eu = () => (atual && rede.obter().eu?.id === atual.usuarioId ? rede.obter().eu : null)
+
 export const sessao = {
   obter: () => atual,
 
+  // Chamado depois que o servidor conferiu o PIN ou o Google (src/firebase/pdv.js).
   entrar({ usuario, modo, filialId, pdvId }) {
     const agora = Date.now()
     definir({ usuarioId: usuario.id, modo, filialId, pdvId: pdvId || null, inicio: agora, ultimoUso: agora, bloqueada: false })
@@ -54,21 +68,18 @@ export const sessao = {
 
   bloquear(motivo = 'inatividade') {
     if (!atual || atual.bloqueada) return
-    const usuario = banco.obter('usuarios', atual.usuarioId)
     definir({ ...atual, bloqueada: true })
-    if (motivo === 'inatividade') registrar('acesso.tela-bloqueada', '', { usuario, filialId: atual.filialId })
+    if (motivo === 'inatividade') registrar('acesso.tela-bloqueada', '', { usuario: eu(), filialId: atual.filialId })
   },
 
   desbloquear() {
     if (atual) definir({ ...atual, bloqueada: false, ultimoUso: Date.now() })
   },
 
-  sair() {
-    if (atual) {
-      const usuario = banco.obter('usuarios', atual.usuarioId)
-      registrar('acesso.saiu', '', { usuario, filialId: atual.filialId })
-    }
+  async sair() {
+    if (atual) registrar('acesso.saiu', '', { usuario: eu(), filialId: atual.filialId })
     definir(null)
+    await sairDaPessoa()
   },
 
   assinar(fn) {
@@ -77,29 +88,50 @@ export const sessao = {
   },
 }
 
+// Um relógio só, de minuto em minuto, para a sessão vencida ser percebida
+// mesmo com a tela parada.
+let minuto = Math.floor(Date.now() / 60_000)
+const ouvintesRelogio = new Set()
+setInterval(() => {
+  const agora = Math.floor(Date.now() / 60_000)
+  if (agora !== minuto) {
+    minuto = agora
+    ouvintesRelogio.forEach((fn) => fn())
+  }
+}, 15_000)
+const useMinuto = () =>
+  useSyncExternalStore(
+    (fn) => (ouvintesRelogio.add(fn), () => ouvintesRelogio.delete(fn)),
+    () => minuto,
+  )
+
 export function useSessao() {
   const s = useSyncExternalStore(sessao.assinar, sessao.obter)
-  const usuarios = useColecao('usuarios')
-  const perfis = useColecao('perfis')
+  const agora = useMinuto()
+  const { carregando: carregandoRede, claims, eu: ficha, perfis } = useRede()
   const filiais = useColecao('filiais')
   const pontosVenda = useColecao('pontosVenda')
   const config = useDoc('config')
 
   return useMemo(() => {
-    const usuario = s ? usuarios.find((u) => u.id === s.usuarioId) : null
-    // Usuário desativado ou apagado no meio do turno: a sessão deixa de valer.
-    const valida = Boolean(usuario?.ativo)
-    const expirada = s && Date.now() - s.inicio > (config.sessaoHoras || 12) * 3600_000
-    const ativa = s && valida && !expirada
+    const carregando = Boolean(s) && carregandoRede
+    // A pessoa da aba precisa ser a do token, e a ficha dela precisa estar ativa.
+    const valida = Boolean(s && claims?.usuario === s.usuarioId && ficha?.id === s.usuarioId && ficha.ativo === true)
+    const horas = Math.min(config.sessaoHoras || HORAS_MAXIMAS, HORAS_MAXIMAS)
+    const vencida = Boolean(s && (Date.now() >= (claims?.ate || 0) || Date.now() - s.inicio > horas * 3_600_000))
+    const ativa = Boolean(s) && !carregando && valida && !vencida
     return {
+      carregando,
       sessao: ativa ? s : null,
-      usuario: ativa ? usuario : null,
-      perfil: ativa ? perfis.find((p) => p.id === usuario.perfilId) : null,
+      usuario: ativa ? ficha : null,
+      perfil: ativa ? perfis.find((p) => p.id === ficha.perfilId) : null,
       filial: ativa ? filiais.find((f) => f.id === s.filialId) : null,
       pdv: ativa ? pontosVenda.find((p) => p.id === s.pdvId) : null,
-      expirada: Boolean(s && (!valida || expirada)),
-      pode: (permissao) => (ativa ? podeFazer(usuario, perfis, permissao) : false),
-      filiaisPermitidas: ativa ? filiais.filter((f) => f.ativo && acessaFilial(usuario, f.id)) : [],
+      expirada: Boolean(s) && !carregando && (!valida || vencida),
+      pode: (permissao) => (ativa ? podeFazer(ficha, perfis, permissao) : false),
+      filiaisPermitidas: ativa ? filiais.filter((f) => f.ativo && acessaFilial(ficha, f.id)) : [],
     }
-  }, [s, usuarios, perfis, filiais, pontosVenda, config.sessaoHoras])
+    // `agora` só está aqui para recalcular a cada minuto
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s, carregandoRede, claims, ficha, perfis, filiais, pontosVenda, config.sessaoHoras, agora])
 }

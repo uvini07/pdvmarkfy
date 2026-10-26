@@ -1,9 +1,8 @@
 // Dados iniciais do PDV. A estrutura copia o PDV Legal (grupo = tamanho,
 // produto = sabor, códigos iguais aos de lá quando apareceram no vídeo) e os
 // preços e fotos vêm do site da Sua Coxinha (src/lojas/cajamar/produtos.js).
-// Tudo isto pode ser alterado depois pela retaguarda.
-
-import { PERFIS_PADRAO, PERMISSOES_NOVAS } from './permissoes.js'
+// Tudo isto pode ser alterado depois pela retaguarda. Usuários e perfis não
+// estão aqui: moram no servidor (ver src/firebase/pdv.js).
 
 const foto = (caminho) => `/fotos/${caminho}.webp`
 
@@ -359,7 +358,6 @@ export function criarSemente() {
   return {
     filiais: FILIAIS,
     pontosVenda,
-    perfis: PERFIS_PADRAO,
     grupos: GRUPOS,
     classes: CLASSES,
     produtos: [...coxinhas, ...copos, ...churros, ...festa, ...combos, ...bebidas, ...molhos, ...casa, ...insumos],
@@ -415,6 +413,4 @@ export const CONFIG_INICIAL = {
   alertaMesaMin: 20,
   perguntarPessoas: true,
   planoContas: PLANO_DE_CONTAS,
-  // Instalação nova já nasce com os perfis atualizados
-  permissoesAplicadas: PERMISSOES_NOVAS.map((n) => n.chave),
 }

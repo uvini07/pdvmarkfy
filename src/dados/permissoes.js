@@ -2,6 +2,10 @@
 // é uma lista destas chaves. As telas escondem o que o usuário não pode fazer, e
 // as ações sensíveis conferem de novo na hora — ou pedem a autorização de um
 // supervisor (PIN de quem tem a permissão).
+//
+// Os perfis moram no servidor (pdv_perfis). O servidor tem uma cópia desta
+// lista (sua-coxinha-app, functions/pdv/permissoes.js) e decide por ela:
+// permissão nova entra nos dois lugares.
 
 export const PERMISSOES = [
   {
@@ -80,11 +84,6 @@ export const PERFIS_PADRAO = [
   { id: 'perfil-atendente', nome: 'Atendente', descricao: 'Opera o caixa da loja.', permissoes: CAIXA_BASICO },
   { id: 'perfil-cozinha', nome: 'Cozinha', descricao: 'Só a tela da cozinha.', permissoes: ['cozinha.ver'] },
 ]
-
-// Permissões criadas depois da primeira versão. Entram uma única vez nos
-// perfis padrão que já estavam gravados no navegador (ver atualizarDados); se
-// o administrador tirar depois, não voltam.
-export const PERMISSOES_NOVAS = [{ chave: 'admin.salao', perfis: ['perfil-gerente'] }]
 
 export function permissoesDe(usuario, perfis) {
   if (!usuario) return []

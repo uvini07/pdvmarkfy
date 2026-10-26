@@ -1,19 +1,25 @@
-// Entrada no PDV. Caixa e cozinha: escolhe a pessoa e digita o PIN (como nos
-// PDVs de balcão). Retaguarda: login e senha.
+// Entrada no PDV.
 //
-// O computador "lembra" de qual filial e de qual caixa ele é, para o atendente
-// não precisar escolher toda vez.
+// Caixa e cozinha: o computador precisa ter sido liberado por um gerente (uma
+// vez, com o Google dele). Depois, cada pessoa escolhe o próprio nome e digita
+// o PIN — conferido no servidor, que bloqueia depois de 5 erros.
+// Retaguarda: com a conta Google cadastrada em Usuários.
+//
+// O computador "lembra" da loja e do caixa dele: é a liberação.
 
-import { useMemo, useState } from 'react'
-import { Botao, Campo, Entrada, Logo, Segmentos, useRelogio } from '../componentes/ui.jsx'
+import { useCallback, useEffect, useState } from 'react'
+import { Botao, Campo, Carregando, Entrada, Logo, Segmentos, Selecao, useRelogio } from '../componentes/ui.jsx'
 import { Icone } from '../componentes/Icone.jsx'
 import { TecladoPin } from '../componentes/TecladoPin.jsx'
+import { confirmar, avisar } from '../componentes/dialogos.jsx'
 import { useColecao } from '../dados/banco.js'
 import { pode, acessaFilial } from '../dados/permissoes.js'
-import { conferirPin, conferirSenha, estaBloqueado } from '../dados/usuarios.js'
 import { sessao } from '../estado/sessao.js'
+import { useRede } from '../estado/rede.js'
+import { entrarComGoogle, entrarComPin, esquecerComputador, liberarComputador, listarOperadores, sairDaPessoa, useComputador } from '../firebase/pdv.js'
 import { ir } from '../rotas/useRota.js'
 import { extenso, hora } from '../lib/datas.js'
+import { textoLimpo } from '../lib/validacao.js'
 
 const CHAVE_DISPOSITIVO = 'scpdv:dispositivo'
 
@@ -44,88 +50,192 @@ export function PainelMarca({ frase = 'Pedido rápido, coxinha quentinha.' }) {
   )
 }
 
-function EntrarComPin({ modo }) {
+function Erro({ children }) {
+  return children ? (
+    <p className="campo__erro" role="alert">
+      {children}
+    </p>
+  ) : null
+}
+
+// --- Liberar o computador (uma vez, por um gerente) ----------------------------------
+
+function LiberarComputador() {
   const filiais = useColecao('filiais').filter((f) => f.ativo)
   const pontosVenda = useColecao('pontosVenda')
-  const usuarios = useColecao('usuarios')
-  const perfis = useColecao('perfis')
-  const dispositivo = lerDispositivo()
-  const [filialId, setFilialId] = useState(dispositivo.filialId && filiais.some((f) => f.id === dispositivo.filialId) ? dispositivo.filialId : '')
+  const { eu, perfis } = useRede()
+  const [conta, setConta] = useState(null)
+  const [filialId, setFilialId] = useState('')
+  const [pdvId, setPdvId] = useState('')
+  const [nome, setNome] = useState('')
+  const [erro, setErro] = useState('')
+  const [ocupado, setOcupado] = useState(false)
+
+  const permitidas = conta ? filiais.filter((f) => acessaFilial(eu, f.id)) : []
+  const caixas = pontosVenda.filter((p) => p.ativo && p.filialId === filialId)
+  const podeLiberar = conta && eu && pode(eu, perfis, 'admin.config')
+
+  const google = async () => {
+    setErro('')
+    setOcupado(true)
+    try {
+      setConta(await entrarComGoogle())
+    } catch (e) {
+      setErro(e.message)
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  const escolherFilial = (id) => {
+    setFilialId(id)
+    const primeiro = pontosVenda.find((p) => p.ativo && p.filialId === id)
+    setPdvId(primeiro?.id || '')
+    setNome(primeiro?.nome || '')
+  }
+
+  const liberar = async (e) => {
+    e.preventDefault()
+    if (!filialId || !pdvId) return setErro('Escolha a loja e o caixa deste computador.')
+    setErro('')
+    setOcupado(true)
+    try {
+      await liberarComputador({ filialId, pdvId, nome: textoLimpo(nome, 40) || 'Caixa' })
+      gravarDispositivo({ filialId, pdvId })
+      await sairDaPessoa()
+      avisar('Computador liberado. Agora cada pessoa entra com o PIN.')
+    } catch (e) {
+      setErro(e.message)
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  const cancelar = async () => {
+    await sairDaPessoa()
+    setConta(null)
+    setErro('')
+  }
+
+  if (!conta) {
+    return (
+      <div className="acesso__passo">
+        <h2>Este computador ainda não é um caixa</h2>
+        <p className="mudo">Um gerente libera este computador uma vez, com a conta Google dele. Depois, cada pessoa entra com o próprio PIN.</p>
+        <Erro>{erro}</Erro>
+        <Botao tamanho="g" bloco icone="cadeado" carregando={ocupado} onClick={google}>
+          Liberar com o Google
+        </Botao>
+      </div>
+    )
+  }
+
+  if (!podeLiberar) {
+    return (
+      <div className="acesso__passo">
+        <h2>Sem permissão para liberar</h2>
+        <p className="mudo">A conta de {conta.nome} não pode liberar computadores. Peça a quem cuida das configurações da loja.</p>
+        <Botao variante="secundario" onClick={cancelar}>
+          Voltar
+        </Botao>
+      </div>
+    )
+  }
+
+  return (
+    <form className="acesso__passo" onSubmit={liberar} noValidate>
+      <h2>Liberar este computador</h2>
+      <p className="mudo">Escolha a loja e o caixa. Só pessoas desta loja vão aparecer para entrar aqui.</p>
+      <Campo rotulo="Loja">{(p) => <Selecao {...p} value={filialId} onChange={(e) => escolherFilial(e.target.value)} vazio="Escolha" opcoes={permitidas.map((f) => ({ valor: f.id, rotulo: f.nome }))} />}</Campo>
+      {filialId && (
+        <Campo rotulo="Caixa" ajuda={caixas.length ? null : 'Esta loja não tem caixa cadastrado. Cadastre em Retaguarda › Administrativo.'}>
+          {(p) => (
+            <Selecao
+              {...p}
+              value={pdvId}
+              onChange={(e) => (setPdvId(e.target.value), setNome(caixas.find((c) => c.id === e.target.value)?.nome || ''))}
+              vazio="Escolha"
+              opcoes={caixas.map((c) => ({ valor: c.id, rotulo: c.nome }))}
+            />
+          )}
+        </Campo>
+      )}
+      {pdvId && <Campo rotulo="Nome deste computador" ajuda="Aparece na retaguarda, para desligar se ele sumir.">{(p) => <Entrada {...p} value={nome} onChange={(e) => setNome(e.target.value)} maxLength={40} />}</Campo>}
+      <Erro>{erro}</Erro>
+      <Botao type="submit" tamanho="g" bloco carregando={ocupado} disabled={!pdvId}>
+        Liberar este computador
+      </Botao>
+      <Botao variante="fantasma" onClick={cancelar}>
+        Cancelar
+      </Botao>
+    </form>
+  )
+}
+
+// --- Escolher a pessoa e digitar o PIN ---------------------------------------------
+
+function EntrarComPin({ modo, terminal }) {
+  const filiais = useColecao('filiais')
+  const [dados, setDados] = useState(null)
+  const [erroLista, setErroLista] = useState('')
   const [escolhido, setEscolhido] = useState(null)
   const [erro, setErro] = useState('')
   const [ocupado, setOcupado] = useState(false)
-  const [precisaPdv, setPrecisaPdv] = useState(null)
 
-  const permissao = modo === 'caixa' ? 'caixa.vender' : 'cozinha.ver'
-  const pessoas = useMemo(
-    () => usuarios.filter((u) => u.ativo && u.pin && acessaFilial(u, filialId) && pode(u, perfis, permissao)).sort((a, b) => a.nome.localeCompare(b.nome)),
-    [usuarios, perfis, filialId, permissao],
-  )
-  const pdvsDaFilial = pontosVenda.filter((p) => p.ativo && p.filialId === filialId)
+  const carregar = useCallback(async () => {
+    setErroLista('')
+    try {
+      setDados(await listarOperadores())
+    } catch (e) {
+      setErroLista(e.message)
+    }
+  }, [])
 
-  const concluir = (usuario, pdvId) => {
-    gravarDispositivo({ filialId, ...(pdvId ? { pdvId } : {}) })
-    sessao.entrar({ usuario, modo, filialId, pdvId })
-    ir(`/${modo}`, { substituir: true })
-  }
+  useEffect(() => {
+    carregar()
+  }, [carregar, terminal.id])
 
   const conferir = async (pin) => {
     setOcupado(true)
     setErro('')
-    const r = await conferirPin(escolhido.id, pin)
-    setOcupado(false)
-    if (!r.ok) return setErro(r.erro)
-    if (modo !== 'caixa') return concluir(r.usuario)
-    const lembrado = pdvsDaFilial.find((p) => p.id === dispositivo.pdvId)
-    if (lembrado) return concluir(r.usuario, lembrado.id)
-    if (pdvsDaFilial.length === 1) return concluir(r.usuario, pdvsDaFilial[0].id)
-    if (!pdvsDaFilial.length) return setErro('Esta filial não tem nenhum ponto de venda ativo. Cadastre em Retaguarda › Administrativo.')
-    setPrecisaPdv(r.usuario)
+    try {
+      const r = await entrarComPin({ usuarioId: escolhido.id, pin, modo })
+      gravarDispositivo({ filialId: r.filialId, pdvId: r.pdvId })
+      sessao.entrar({ usuario: r.usuario, modo, filialId: r.filialId, pdvId: r.pdvId })
+      ir(`/${modo}`, { substituir: true })
+    } catch (e) {
+      setErro(e.message)
+      if (e.motivo === 'bloqueado') carregar()
+    } finally {
+      setOcupado(false)
+    }
   }
 
-  if (!filialId) {
+  const trocarComputador = async () => {
+    const ok = await confirmar({
+      titulo: 'Desligar este computador do caixa?',
+      texto: 'Para usar de novo, um gerente vai precisar liberar com a conta Google dele.',
+      botao: 'Desligar',
+      perigo: true,
+    })
+    if (ok) await esquecerComputador()
+  }
+
+  if (erroLista && !dados) {
     return (
       <div className="acesso__passo">
-        <h2>De qual loja é este computador?</h2>
-        <ul className="grade-escolha">
-          {filiais.map((f) => (
-            <li key={f.id}>
-              <button type="button" className="escolha" onClick={() => setFilialId(f.id)}>
-                <Icone nome="loja" tamanho={22} />
-                <span>
-                  <strong>{f.nome}</strong>
-                  <small>{f.cidade}</small>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <h2>Não foi possível abrir o caixa</h2>
+        <Erro>{erroLista}</Erro>
+        <Botao icone="atualizar" onClick={carregar}>
+          Tentar de novo
+        </Botao>
       </div>
     )
   }
+  if (!dados) return <Carregando texto="Procurando quem atende aqui…" />
 
-  if (precisaPdv) {
-    return (
-      <div className="acesso__passo">
-        <h2>Qual caixa é este?</h2>
-        <p className="mudo">O computador vai lembrar da escolha.</p>
-        <ul className="grade-escolha">
-          {pdvsDaFilial.map((p) => (
-            <li key={p.id}>
-              <button type="button" className="escolha" onClick={() => concluir(precisaPdv, p.id)}>
-                <Icone nome="monitor" tamanho={22} />
-                <span>
-                  <strong>{p.nome}</strong>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-    )
-  }
-
-  const filial = filiais.find((f) => f.id === filialId)
+  const filial = filiais.find((f) => f.id === dados.terminal.filialId)
+  const pessoas = dados.pessoas.filter((p) => (modo === 'caixa' ? p.caixa : p.cozinha))
 
   if (escolhido) {
     return (
@@ -148,81 +258,81 @@ function EntrarComPin({ modo }) {
     <div className="acesso__passo">
       <div className="linha linha--entre">
         <h2>Quem vai {modo === 'caixa' ? 'atender' : 'cuidar da cozinha'}?</h2>
-        <button type="button" className="link-filial" onClick={() => setFilialId('')}>
-          <Icone nome="loja" tamanho={16} /> {filial?.nome}
+        <button type="button" className="link-filial" onClick={carregar} title="Atualizar a lista">
+          <Icone nome="loja" tamanho={16} /> {filial?.nome || 'Loja'} · {dados.terminal.nome}
         </button>
       </div>
       {pessoas.length ? (
         <ul className="grade-pessoas">
           {pessoas.map((u) => (
             <li key={u.id}>
-              <button type="button" className="pessoa" onClick={() => setEscolhido(u)} disabled={estaBloqueado(u)}>
+              <button type="button" className="pessoa" onClick={() => setEscolhido(u)} disabled={u.bloqueado}>
                 <span className="pessoa__inicial" aria-hidden="true">
                   {u.nome[0]}
                 </span>
                 <span className="pessoa__nome">{u.nome.split(' ').slice(0, 2).join(' ')}</span>
-                {estaBloqueado(u) && <span className="pessoa__bloqueio">Bloqueado</span>}
+                {u.bloqueado && <span className="pessoa__bloqueio">Bloqueado</span>}
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="mudo">Ninguém desta filial tem acesso {modo === 'caixa' ? 'ao caixa' : 'à cozinha'} ainda. O gerente cadastra em Retaguarda › Usuários.</p>
+        <p className="mudo">Ninguém desta loja tem acesso {modo === 'caixa' ? 'ao caixa' : 'à cozinha'} com PIN ainda. O gerente cadastra em Retaguarda › Usuários.</p>
       )}
+      <Erro>{erroLista}</Erro>
+      <button type="button" className="link-voltar" onClick={trocarComputador}>
+        <Icone nome="monitor" tamanho={16} /> Desligar este computador
+      </button>
     </div>
   )
 }
 
-function EntrarComSenha() {
-  const [login, setLogin] = useState('')
-  const [senha, setSenha] = useState('')
+function Computador({ modo }) {
+  const { carregando, terminal } = useComputador()
+  if (carregando) return <Carregando />
+  if (!terminal) return <LiberarComputador />
+  return <EntrarComPin key={`${modo}-${terminal.id}`} modo={modo} terminal={terminal} />
+}
+
+// --- Retaguarda: Google ------------------------------------------------------------------
+
+function EntrarComGoogle() {
+  const filiais = useColecao('filiais')
   const [erro, setErro] = useState('')
   const [ocupado, setOcupado] = useState(false)
-  const [ver, setVer] = useState(false)
-  const filiais = useColecao('filiais')
 
-  const enviar = async (e) => {
-    e.preventDefault()
-    if (!login || !senha) return setErro('Preencha login e senha.')
-    setOcupado(true)
+  const entrar = async () => {
     setErro('')
-    const r = await conferirSenha(login, senha)
-    setOcupado(false)
-    if (!r.ok) {
-      setSenha('')
-      return setErro(r.erro)
+    setOcupado(true)
+    try {
+      const usuario = await entrarComGoogle()
+      const permitidas = filiais.filter((f) => f.ativo && acessaFilial(usuario, f.id))
+      const filialId = permitidas.find((f) => f.id === lerDispositivo().filialId)?.id || permitidas[0]?.id
+      if (!filialId) {
+        await sairDaPessoa()
+        return setErro('Sua conta não tem nenhuma filial deste computador. Peça ao administrador para conferir em Usuários.')
+      }
+      sessao.entrar({ usuario, modo: 'admin', filialId })
+      ir('/admin', { substituir: true })
+    } catch (e) {
+      setErro(e.message)
+    } finally {
+      setOcupado(false)
     }
-    const dispositivo = lerDispositivo()
-    const permitida = filiais.filter((f) => f.ativo && acessaFilial(r.usuario, f.id))
-    const filialId = permitida.find((f) => f.id === dispositivo.filialId)?.id || permitida[0]?.id
-    sessao.entrar({ usuario: r.usuario, modo: 'admin', filialId })
-    ir('/admin', { substituir: true })
   }
 
   return (
-    <form className="acesso__passo" onSubmit={enviar} noValidate>
+    <div className="acesso__passo">
       <h2>Retaguarda</h2>
-      <p className="mudo">Cardápio, preços, estoque, financeiro e relatórios.</p>
-      <Campo rotulo="Login">{(p) => <Entrada {...p} value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" autoCapitalize="none" autoFocus />}</Campo>
-      <Campo rotulo="Senha">
-        {(p) => (
-          <div className="entrada-senha">
-            <Entrada {...p} type={ver ? 'text' : 'password'} value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="current-password" />
-            <button type="button" onClick={() => setVer((v) => !v)} aria-label={ver ? 'Esconder senha' : 'Mostrar senha'}>
-              <Icone nome={ver ? 'olho-fechado' : 'olho'} tamanho={18} />
-            </button>
-          </div>
-        )}
-      </Campo>
-      {erro && (
-        <p className="campo__erro" role="alert">
-          {erro}
-        </p>
-      )}
-      <Botao type="submit" tamanho="g" bloco carregando={ocupado}>
-        Entrar
+      <p className="mudo">Cardápio, preços, estoque, financeiro e relatórios. Entre com a conta Google cadastrada em Usuários.</p>
+      <Erro>{erro}</Erro>
+      <Botao tamanho="g" bloco carregando={ocupado} onClick={entrar}>
+        Entrar com o Google
       </Botao>
-    </form>
+      <p className="acesso__nota">
+        <Icone nome="cadeado" tamanho={15} /> O PDV não guarda senha: quem confere é o Google.
+      </p>
+    </div>
   )
 }
 
@@ -247,10 +357,9 @@ export function Entrar() {
               { valor: 'admin', rotulo: 'Retaguarda', icone: 'grafico' },
             ]}
           />
-          {modo === 'admin' ? <EntrarComSenha /> : <EntrarComPin key={modo} modo={modo} />}
+          {modo === 'admin' ? <EntrarComGoogle /> : <Computador modo={modo} />}
         </div>
       </main>
     </div>
   )
 }
-

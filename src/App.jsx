@@ -5,7 +5,7 @@ import { sessao, useSessao } from './estado/sessao.js'
 import { useRota, ir } from './rotas/useRota.js'
 import { Dialogos } from './componentes/dialogos.jsx'
 import { Impressao } from './componentes/Impressao.jsx'
-import { Botao } from './componentes/ui.jsx'
+import { Botao, Carregando } from './componentes/ui.jsx'
 import { Configuracao } from './telas/Configuracao.jsx'
 import { Entrar } from './telas/Entrar.jsx'
 import { Bloqueio } from './telas/Bloqueio.jsx'
@@ -87,6 +87,13 @@ function Rotas() {
 
   if (partes[0] === 'painel') return <PainelSenhas filialId={partes[1]} />
   if (!sistemaConfigurado(config)) return <Configuracao />
+  // O servidor ainda está confirmando quem é a pessoa da aba
+  if (s.carregando)
+    return (
+      <div className="tema-escuro tela-cheia-centro">
+        <Carregando texto="Conferindo o acesso…" />
+      </div>
+    )
   if (!s.sessao) return <Entrar />
   if (s.sessao.bloqueada) return <Bloqueio />
 

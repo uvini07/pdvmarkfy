@@ -162,7 +162,7 @@ export function Configuracoes() {
       empresa: textoLimpo(dados.empresa, 40) || 'Sua Coxinha',
       mensagemCupom: textoLimpo(dados.mensagemCupom, 140),
       bloqueioMinutos: Math.min(60, Math.max(1, Number(dados.bloqueioMinutos) || 5)),
-      sessaoHoras: Math.min(24, Math.max(1, Number(dados.sessaoHoras) || 12)),
+      sessaoHoras: Math.min(12, Math.max(1, Number(dados.sessaoHoras) || 12)),
       alertaCozinhaMin: Math.min(60, Math.max(1, Number(dados.alertaCozinhaMin) || 8)),
       // Instalação antiga não tem o campo: vale o padrão de 10%, não zero
       servicoPercentual: Math.min(20, Math.max(0, Math.round((Number(dados.servicoPercentual ?? 10) || 0) * 10) / 10)),
@@ -197,8 +197,8 @@ export function Configuracoes() {
             <Campo rotulo="Bloquear a tela depois de (minutos sem uso)" ajuda="O caixa pede o PIN de novo. Recomendado: 5.">
               {(p) => <Entrada {...p} type="number" min={1} max={60} value={dados.bloqueioMinutos} onChange={(e) => mudar('bloqueioMinutos')(e.target.value)} />}
             </Campo>
-            <Campo rotulo="Encerrar a sessão depois de (horas)" ajuda="Depois disso é preciso entrar de novo. Recomendado: 12 (um turno).">
-              {(p) => <Entrada {...p} type="number" min={1} max={24} value={dados.sessaoHoras} onChange={(e) => mudar('sessaoHoras')(e.target.value)} />}
+            <Campo rotulo="Encerrar a sessão depois de (horas)" ajuda="Depois disso é preciso entrar de novo. Até 12 (um turno): o servidor não aceita sessão mais longa.">
+              {(p) => <Entrada {...p} type="number" min={1} max={12} value={dados.sessaoHoras} onChange={(e) => mudar('sessaoHoras')(e.target.value)} />}
             </Campo>
           </div>
         </Cartao>
