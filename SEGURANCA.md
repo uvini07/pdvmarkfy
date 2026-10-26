@@ -21,13 +21,15 @@ O login usa o Firebase do app e do site (`suacoxinhaapp`). Quem decide quem entr
   Segurança e para de funcionar na hora.
 - **Retaguarda com Google**: o PDV não guarda senha. Entra quem tem o e-mail cadastrado em
   Usuários (verificado pelo Google); conta sem cadastro é recusada e fica registrada.
-- **A identidade vem do servidor**: depois do PIN ou do Google, a função emite um token do
-  Firebase com o id da pessoa. Editar o sessionStorage não troca de pessoa — a sessão cai.
+- **A identidade vem do servidor**: cada computador e cada pessoa entram com o login anônimo do
+  Firebase (a retaguarda, com o Google); depois do PIN ou do Google, a função grava em
+  `pdv_sessoes` quem aquele login é. O navegador não consegue gravar ali, então editar o
+  sessionStorage (ou o banco local) não troca de pessoa — a sessão cai.
 - **Pessoa de outra filial, inexistente ou desligada responde igual a PIN errado.**
 - **Bloqueio de tela por inatividade** (5 minutos, configurável): pede o PIN de novo (conferido no
   servidor) sem perder o pedido em andamento. Se a internet cair, destrava com o PIN de quem
   entrou, até 5 tentativas; depois espera a conexão. A cozinha e o painel não bloqueiam.
-- **Sessão vence em até 12 horas** (o servidor não aceita token depois disso) e acaba ao fechar a
+- **Sessão vence em até 12 horas** (o servidor não aceita a sessão depois disso) e acaba ao fechar a
   aba. Usuário desativado perde a sessão na hora, em todos os computadores.
 - **Não há usuário de demonstração com PIN conhecido.**
 
@@ -125,10 +127,9 @@ não contra quem tem acesso técnico ao computador**:
 ## Para publicar o login (uma vez)
 
 1. Juntar o PR do **sua-coxinha-app** no `main`: o GitHub Actions publica as regras e as funções.
-2. Google Cloud → IAM: dar à conta de serviço das funções
-   (`<número>-compute@developer.gserviceaccount.com`) o papel **Criador de token da conta de
-   serviço** e ativar a **IAM Service Account Credentials API** (detalhes no topo de
-   `.github/workflows/firebase.yml` do app). Sem isso, todo login responde "não foi possível entrar".
+2. Firebase → Authentication → Método de login: ligar o provedor **Anônimo** (gratuito). É
+   com ele que o computador e a pessoa do caixa entram. Não precisa de IAM nem de permissão
+   extra no Google Cloud.
 3. Firebase → Authentication → Configurações → **Domínios autorizados**: adicionar o domínio
    onde o PDV for publicado (para a janela do Google).
 4. Domínio próprio do PDV (fora de `*.vercel.app`): variável `PDV_ORIGENS` no GitHub do app.
@@ -138,7 +139,7 @@ não contra quem tem acesso técnico ao computador**:
 ## Para colocar em produção (próximas fases)
 
 - [x] Conferir PIN no servidor, com limite de tentativas no servidor.
-- [x] Sessão emitida pelo servidor (token do Firebase com prazo), não pelo navegador.
+- [x] Sessão gravada pelo servidor (`pdv_sessoes`, com prazo), não pelo navegador; sair apaga na hora.
 - [x] Usuários, perfis e permissões decididos **no servidor**, com filial e sem escalada de
       privilégio.
 - [x] Registro de acessos gravado no servidor, só de inclusão.

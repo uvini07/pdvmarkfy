@@ -1,7 +1,7 @@
 // Teclado de PIN para tela de toque, que também aceita o teclado físico.
 // Os dígitos nunca aparecem: só as bolinhas preenchidas.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icone } from './Icone.jsx'
 
 export function TecladoPin({ aoConfirmar, minimo = 4, maximo: maximoPadrao = 6, tamanho, erro, ocupado, rotulo = 'Digite seu PIN', limparAoErrar = true }) {
@@ -26,15 +26,21 @@ export function TecladoPin({ aoConfirmar, minimo = 4, maximo: maximoPadrao = 6, 
   const digitar = useCallback(
     (d) => {
       if (ocupado) return
-      setPin((p) => {
-        if (p.length >= maximo) return p
-        const novo = p + d
-        if (novo.length === maximo) setTimeout(() => enviar(novo), 60)
-        return novo
-      })
+      setPin((p) => (p.length >= maximo ? p : p + d))
     },
-    [maximo, enviar, ocupado],
+    [maximo, ocupado],
   )
+
+  // Completou o PIN: envia uma vez só. (O envio fica fora do setPin: o React
+  // pode chamar o atualizador duas vezes, e cada chamada viraria uma
+  // tentativa de PIN no servidor.)
+  const enviarAtual = useRef(enviar)
+  enviarAtual.current = enviar
+  useEffect(() => {
+    if (pin.length !== maximo) return
+    const t = setTimeout(() => enviarAtual.current(pin), 60)
+    return () => clearTimeout(t)
+  }, [pin, maximo])
 
   useEffect(() => {
     const tecla = (e) => {

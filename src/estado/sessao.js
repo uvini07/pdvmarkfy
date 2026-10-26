@@ -1,16 +1,17 @@
 // Sessão do usuário logado.
 //
-// Quem a pessoa é vem do servidor: o token que as funções do login emitem
-// (ver src/firebase/pdv.js) e a ficha dela no Firestore (src/estado/rede.js).
+// Quem a pessoa é vem do servidor: a sessão que as funções do login gravam
+// para este login do Firebase (ver src/firebase/pdv.js) e a ficha dela no
+// Firestore (src/estado/rede.js).
 // Editar o sessionStorage não troca de pessoa — o id daqui precisa bater com o
-// do token, e as permissões saem da ficha e dos perfis do servidor.
+// da sessão do servidor, e as permissões saem da ficha e dos perfis de lá.
 //
 // O sessionStorage guarda só onde a pessoa está trabalhando (modo, filial,
 // caixa) e se a tela está bloqueada. Fecha a aba, acaba a sessão.
 //
 // Bloqueio por inatividade: depois de N minutos sem toque nem tecla, a tela pede
 // o PIN de novo (o caixa continua aberto). A sessão inteira vence em até 12 horas
-// (o servidor não aceita o token depois disso).
+// (o servidor não aceita a sessão depois disso).
 
 import { useMemo, useSyncExternalStore } from 'react'
 import { useColecao, useDoc } from '../dados/banco.js'
@@ -108,17 +109,17 @@ const useMinuto = () =>
 export function useSessao() {
   const s = useSyncExternalStore(sessao.assinar, sessao.obter)
   const agora = useMinuto()
-  const { carregando: carregandoRede, claims, eu: ficha, perfis } = useRede()
+  const { carregando: carregandoRede, vinculo, eu: ficha, perfis } = useRede()
   const filiais = useColecao('filiais')
   const pontosVenda = useColecao('pontosVenda')
   const config = useDoc('config')
 
   return useMemo(() => {
     const carregando = Boolean(s) && carregandoRede
-    // A pessoa da aba precisa ser a do token, e a ficha dela precisa estar ativa.
-    const valida = Boolean(s && claims?.usuario === s.usuarioId && ficha?.id === s.usuarioId && ficha.ativo === true)
+    // A pessoa da aba precisa ser a da sessão do servidor, e a ficha dela precisa estar ativa.
+    const valida = Boolean(s && vinculo?.usuario === s.usuarioId && ficha?.id === s.usuarioId && ficha.ativo === true)
     const horas = Math.min(config.sessaoHoras || HORAS_MAXIMAS, HORAS_MAXIMAS)
-    const vencida = Boolean(s && (Date.now() >= (claims?.ate || 0) || Date.now() - s.inicio > horas * 3_600_000))
+    const vencida = Boolean(s && (Date.now() >= (vinculo?.ate || 0) || Date.now() - s.inicio > horas * 3_600_000))
     const ativa = Boolean(s) && !carregando && valida && !vencida
     return {
       carregando,
@@ -133,5 +134,5 @@ export function useSessao() {
     }
     // `agora` só está aqui para recalcular a cada minuto
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s, carregandoRede, claims, ficha, perfis, filiais, pontosVenda, config.sessaoHoras, agora])
+  }, [s, carregandoRede, vinculo, ficha, perfis, filiais, pontosVenda, config.sessaoHoras, agora])
 }

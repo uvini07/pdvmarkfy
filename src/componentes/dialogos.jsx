@@ -111,6 +111,7 @@ function Autorizacao({ dados }) {
   }
 
   const conferir = async (pin) => {
+    setErro('')
     setOcupado(true)
     try {
       const r = await autorizar({ supervisorId: escolhido.id, pin, permissao: dados.permissao, filialId: dados.filialId, acao: dados.acao })

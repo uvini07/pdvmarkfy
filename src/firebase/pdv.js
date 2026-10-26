@@ -1,12 +1,17 @@
 // Login do PDV. Tudo passa pelas funções pdv* do servidor (no repositório
 // sua-coxinha-app, functions/pdv/): o navegador nunca vê hash de PIN e não
 // decide quem entra.
+//
+// O computador e a pessoa do caixa entram com o login anônimo do Firebase; a
+// retaguarda, com o Google. Depois do PIN (ou do Google) a função grava em
+// pdv_sessoes quem aquele login é — o navegador não consegue gravar ali.
 
 import { useSyncExternalStore } from 'react'
-import { GoogleAuthProvider, onAuthStateChanged, signInWithCustomToken, signInWithPopup, signOut } from 'firebase/auth'
+import { GoogleAuthProvider, onAuthStateChanged, signInAnonymously, signInWithPopup, signOut } from 'firebase/auth'
+import { doc } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
-import { authComputador, authPessoa, funcoesComputador, funcoesPessoa } from './app.js'
-import { entrarComToken, iniciarEntrada, terminarEntrada } from '../estado/rede.js'
+import { authComputador, authPessoa, dbComputador, funcoesComputador, funcoesPessoa } from './app.js'
+import { depoisDaTroca, esperarPessoa, iniciarEntrada, ouvirComNovaTentativa, terminarEntrada } from '../estado/rede.js'
 import { conferirCredencial, criarCredencial } from '../lib/seguranca.js'
 
 export const SEM_CONEXAO = 'Sem conexão com o servidor. Confira a internet e tente de novo.'
@@ -52,20 +57,40 @@ async function chamar(nome, dados = {}, { computador = false } = {}) {
 
 let computador = { carregando: true, terminal: null }
 const ouvintesComputador = new Set()
-
-onAuthStateChanged(authComputador, async (u) => {
-  let terminal = null
-  if (u) {
-    try {
-      const { claims } = await u.getIdTokenResult()
-      if (claims.pdv === 't') terminal = { id: claims.terminal, filialId: claims.filial }
-    } catch {
-      // Sem internet: o computador continua liberado; o servidor confere no próximo login.
-      terminal = { id: u.uid.replace(/^pdvt_/, ''), filialId: null }
-    }
-  }
-  computador = { carregando: false, terminal }
+const mudarComputador = (c) => {
+  computador = c
   ouvintesComputador.forEach((fn) => fn())
+}
+
+// O computador está liberado se a sessão do login dele diz que é um caixa.
+let pararComputador = null
+let versaoComputador = 0
+onAuthStateChanged(authComputador, async (u) => {
+  const minha = ++versaoComputador
+  pararComputador?.()
+  pararComputador = null
+  if (!u) return mudarComputador({ carregando: false, terminal: null })
+  const ref = doc(dbComputador, 'pdv_sessoes', u.uid)
+  const lida = await depoisDaTroca(ref)
+  if (minha !== versaoComputador) return
+  // Sem internet ao abrir: o computador continua como estava liberado; o
+  // servidor confere quando a conexão voltar (o PIN precisa dela de qualquer jeito).
+  if (!lida) {
+    const lembrado = (() => { try { return JSON.parse(localStorage.getItem('scpdv:dispositivo')) || {} } catch { return {} } })()
+    if (lembrado.filialId) mudarComputador({ carregando: false, terminal: { id: u.uid, filialId: lembrado.filialId } })
+  }
+  const lista = []
+  pararComputador = () => lista.splice(0).forEach((fn) => fn())
+  ouvirComNovaTentativa(
+    lista,
+    ref,
+    (s) => {
+      const v = s.exists() ? s.data() : null
+      mudarComputador({ carregando: false, terminal: v?.tipo === 't' ? { id: v.terminal, filialId: v.filial } : null })
+    },
+    () => mudarComputador({ carregando: false, terminal: null }),
+    () => minha === versaoComputador,
+  )
 })
 
 export function useComputador() {
@@ -75,13 +100,31 @@ export function useComputador() {
   )
 }
 
-export async function liberarComputador({ filialId, pdvId, nome }) {
-  const r = await chamar('pdvParear', { filialId, pdvId, nome })
+// Login anônimo novo: cada liberação (ou cada pessoa que entra) ganha o seu.
+const emAndamento = new Map()
+async function loginAnonimo(auth) {
   try {
-    await signInWithCustomToken(authComputador, r.token)
+    if (!auth.currentUser?.isAnonymous) {
+      // Duas chamadas ao mesmo tempo esperam o mesmo login, sem criar dois.
+      if (!emAndamento.has(auth))
+        emAndamento.set(
+          auth,
+          signOut(auth)
+            .catch(() => {})
+            .then(() => signInAnonymously(auth))
+            .finally(() => emAndamento.delete(auth)),
+        )
+      await emAndamento.get(auth)
+    }
+    return await auth.currentUser.getIdToken()
   } catch (erro) {
     throw traduzir(erro)
   }
+}
+
+export async function liberarComputador({ filialId, pdvId, nome }) {
+  const tokenComputador = await loginAnonimo(authComputador)
+  const r = await chamar('pdvParear', { filialId, pdvId, nome, tokenComputador })
   return r.terminal
 }
 
@@ -114,7 +157,7 @@ export async function entrarComGoogle() {
     await signInWithPopup(authPessoa, provedor)
     comGoogle = true
     const r = await chamar('pdvEntrarGoogle')
-    await entrarComToken(r.token, r.usuario.id)
+    await esperarPessoa(r.usuario.id)
     verificador = null
     return r.usuario
   } catch (erro) {
@@ -128,11 +171,15 @@ export async function entrarComGoogle() {
 }
 
 export async function entrarComPin({ usuarioId, pin, modo }) {
-  const r = await chamar('pdvEntrarPin', { usuarioId, pin, modo }, { computador: true })
+  let r
+  iniciarEntrada()
   try {
-    await entrarComToken(r.token, usuarioId)
+    // A pessoa ganha um login anônimo; o computador manda o PIN dela e, se
+    // conferir, o servidor grava a sessão nesse login.
+    const tokenPessoa = await loginAnonimo(authPessoa)
+    r = await chamar('pdvEntrarPin', { usuarioId, pin, modo, tokenPessoa }, { computador: true })
+    await esperarPessoa(usuarioId)
   } catch (erro) {
-    await signOut(authPessoa).catch(() => {})
     throw traduzir(erro)
   } finally {
     terminarEntrada()
@@ -157,6 +204,8 @@ export async function conferirPin(usuarioId, pin) {
 
 export async function sairDaPessoa() {
   verificador = null
+  // A sessão some no servidor na hora; sem internet, ela vence sozinha.
+  await chamar('pdvSair').catch(() => {})
   await signOut(authPessoa).catch(() => {})
 }
 

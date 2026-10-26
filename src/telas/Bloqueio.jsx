@@ -15,6 +15,7 @@ export function Bloqueio() {
   const [ocupado, setOcupado] = useState(false)
 
   const conferir = async (pin) => {
+    setErro('')
     setOcupado(true)
     const r = await conferirPin(usuario.id, pin)
     setOcupado(false)

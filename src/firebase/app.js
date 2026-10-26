@@ -1,10 +1,13 @@
-// Duas conexões com o mesmo projeto, cada uma com a sua identidade:
+// Duas conexões com o mesmo projeto, cada uma com o seu login:
 //
-//   · pessoa     — quem está atendendo. Fica só na aba (fechou, saiu), como a
+//   · pessoa     — quem está atendendo (login anônimo no caixa e na cozinha,
+//                  Google na retaguarda). Fica só na aba (fechou, saiu), como a
 //                  sessão do PDV sempre foi.
-//   · computador — o caixa liberado por um gerente. Fica guardado no
-//                  navegador: o computador continua liberado entre um dia e
-//                  outro, e é ele que lista quem atende ali e confere o PIN.
+//   · computador — o caixa liberado por um gerente (login anônimo). Fica
+//                  guardado no navegador: o computador continua liberado entre
+//                  um dia e outro, e é ele que lista quem atende ali e confere o PIN.
+//
+// Quem cada login é fica em pdv_sessoes, gravado pelas funções do servidor.
 //
 // Separadas, a pessoa sai e entra sem o computador perder a liberação.
 
@@ -32,17 +35,22 @@ export const authComputador = (auths.computador ??= initializeAuth(appComputador
 
 authPessoa.languageCode = 'pt-BR'
 
-// Cache no computador: a ficha da pessoa e os perfis continuam aparecendo se a
-// internet cair e a página recarregar. Sem suporte (modo privado), modo normal.
-function iniciarFirestore() {
+// Cache no computador: a ficha da pessoa, os perfis e a liberação do
+// computador continuam aparecendo se a internet cair e a página recarregar.
+// Sem suporte (modo privado), modo normal.
+function iniciarFirestore(app) {
   try {
-    return initializeFirestore(appPessoa, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) })
+    return initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) })
   } catch {
-    return getFirestore(appPessoa)
+    return getFirestore(app)
   }
 }
 
-export const db = iniciarFirestore()
+export const db = iniciarFirestore(appPessoa)
+// O do computador fica só na memória: dois bancos com cache persistente na
+// mesma página disputam o IndexedDB e o Firestore às vezes deixa de entregar
+// atualizações. A liberação do computador é lida de novo a cada abertura.
+export const dbComputador = getFirestore(appComputador)
 export const funcoesPessoa = getFunctions(appPessoa, REGIAO_FUNCOES)
 export const funcoesComputador = getFunctions(appComputador, REGIAO_FUNCOES)
 
@@ -51,6 +59,6 @@ export const funcoesComputador = getFunctions(appComputador, REGIAO_FUNCOES)
 if (import.meta.env.VITE_EMULADORES === 'true' && !globalThis.__pdvEmuladores) {
   globalThis.__pdvEmuladores = true
   for (const auth of [authPessoa, authComputador]) connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
-  connectFirestoreEmulator(db, '127.0.0.1', 8085)
+  for (const banco of [db, dbComputador]) connectFirestoreEmulator(banco, '127.0.0.1', 8085)
   for (const f of [funcoesPessoa, funcoesComputador]) connectFunctionsEmulator(f, '127.0.0.1', 5001)
 }

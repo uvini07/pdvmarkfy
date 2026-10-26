@@ -39,8 +39,8 @@ servidor" (já descrito no `SEGURANCA.md`). O único conserto de fundo para as m
 
 ### 1. [ALTO — já documentado] Toda a autorização é no cliente: bypass por devtools — 🟡 LOGIN CORRIGIDO (fase 1)
 
-> **Fase 1 (login no servidor):** a identidade agora vem de um token emitido pelas funções do
-> Firebase; trocar o `usuarioId` no `sessionStorage` derruba a sessão em vez de trocar de pessoa
+> **Fase 1 (login no servidor):** a identidade agora vem de uma sessão gravada pelas funções do
+> Firebase (`pdv_sessoes`), que o navegador não consegue gravar; trocar o `usuarioId` no `sessionStorage` derruba a sessão em vez de trocar de pessoa
 > (verificado no navegador contra os emuladores). Bloqueio de tentativas, usuários e perfis
 > também estão no servidor. **Continua aberto** para os dados de venda, estoque e cadastros, que
 > ainda ficam no IndexedDB até as fases 2 e 3.
