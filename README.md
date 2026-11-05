@@ -28,6 +28,30 @@ No primeiro acesso o PDV pede para criar o **administrador** (login, PIN e senha
 A retaguarda avisa enquanto esses usuários estiverem ativos. Antes de usar na loja, apague a
 demonstração em **Retaguarda › Segurança e backup**.
 
+## Instalar no Windows (PWA)
+
+O PDV é um aplicativo instalável: abre em janela própria, com ícone no menu Iniciar e na barra de
+tarefas, e **funciona sem internet**.
+
+1. Abra o endereço publicado do PDV no **Chrome** ou no **Edge** (precisa ser `https://`; em
+   `http://localhost` também funciona).
+2. Clique no ícone **Instalar** na barra de endereço (um monitor com uma seta) ou, no menu ⋮,
+   em **Transmitir, salvar e compartilhar › Instalar página como app** (Chrome) ou
+   **Aplicativos › Instalar este site como um aplicativo** (Edge).
+3. Para fixar: botão direito no ícone da barra de tarefas › **Fixar na barra de tarefas**. Para
+   abrir com o Windows, use `edge://apps` ou `chrome://apps` › **Iniciar automaticamente ao fazer
+   logon**.
+4. Com o botão direito no ícone aparecem os atalhos **Caixa**, **Cozinha** e **Retaguarda**.
+
+Para o visual nunca ficar quebrado, cada versão (HTML, CSS, JavaScript, fontes e fotos) é guardada
+inteira no computador e servida junta. Quando sai uma versão nova, o PDV mostra **Versão nova do
+PDV — Atualizar**; ela só entra quando alguém toca em Atualizar ou fecha todas as janelas do PDV.
+O service worker só existe na versão publicada (`npm run build`); no `npm run dev` ele fica
+desligado para não guardar CSS antigo enquanto se programa.
+
+Cuidado: os dados ficam no navegador daquele computador. **Limpar os dados de navegação do site
+apaga o PDV** — faça backup em Retaguarda › Segurança e backup.
+
 ## As quatro telas
 
 | Tela | Endereço | Quem usa |

@@ -964,3 +964,43 @@
   font-size: 11.5px;
   font-weight: 700;
 }
+
+/* ---------- Aviso de versão nova (PDV instalado) ---------- */
+
+.aviso-versao {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 10px 10px 10px 16px;
+  border-radius: var(--raio-g);
+  background: var(--n-900);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35), inset 0 0 0 1px var(--n-700);
+  font-size: 14px;
+  /* Fica fora das telas (.tema-claro/.tema-escuro): traz as próprias cores. */
+  --texto: var(--branco);
+  --superficie-3: var(--n-700);
+  --borda-forte: var(--n-600);
+  color: var(--texto);
+}
+.aviso-versao > span {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 599.98px) {
+  .aviso-versao {
+    flex-wrap: wrap;
+    width: calc(100vw - 32px);
+  }
+}
+@media print {
+  .aviso-versao {
+    display: none;
+  }
+}

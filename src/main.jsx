@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import { iniciarBanco } from './dados/banco.js'
 import { atualizarDados } from './dados/inicializar.js'
+import AvisoAtualizacao from './pwa/AvisoAtualizacao.jsx'
+import { registrarPwa } from './pwa/registrar.js'
 import './estilos/tokens.css'
 import './estilos/base.css'
 import './estilos/componentes.css'
@@ -13,6 +15,8 @@ import './estilos/admin.css'
 import './estilos/salao.css'
 import './estilos/impressao.css'
 
+registrarPwa()
+
 const raiz = createRoot(document.getElementById('raiz'))
 
 iniciarBanco()
@@ -21,6 +25,7 @@ iniciarBanco()
     raiz.render(
       <StrictMode>
         <App />
+        <AvisoAtualizacao />
       </StrictMode>,
     ),
   )
